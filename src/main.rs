@@ -1,9 +1,23 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 struct Backend {
     client: Client,
+    docs: Arc<Mutex<HashMap<Url, String>>>,
+}
+
+impl Backend {
+    fn new(client: Client) -> Self {
+        Self {
+            client,
+            docs: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -18,6 +32,7 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions::default()),
                 document_symbol_provider: Some(OneOf::Left(true)),
@@ -40,84 +55,64 @@ impl LanguageServer for Backend {
         let text = params.text_document.text;
         let uri = params.text_document.uri;
 
-        let diagnostics = fake_diagnostics(&text);
-
-        self.client.publish_diagnostics(uri, diagnostics, None).await;
+        self.docs.lock().await.insert(uri, text);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
-
         let text = params
             .content_changes
             .last()
             .map(|c| c.text.clone())
             .unwrap_or_default();
 
-        let diagnostics = fake_diagnostics(&text);
-
-        self.client.publish_diagnostics(uri, diagnostics, None).await;
+        self.docs.lock().await.insert(uri, text);
     }
 
-    async fn hover(&self, _: HoverParams) -> Result<Option<Hover>> {
-        Ok(Some(Hover {
-            contents: HoverContents::Scalar(MarkedString::String(
-                "Hello from mini-lsp".to_string(),
-            )),
-            range: None,
-        }))
-    }
-
-    async fn document_symbol(
+    async fn folding_range(
         &self,
-        _: DocumentSymbolParams,
-    ) -> Result<Option<DocumentSymbolResponse>> {
-        Ok(Some(DocumentSymbolResponse::Nested(vec![
-            DocumentSymbol {
-                name: "example_symbol".into(),
-                detail: Some("demo".into()),
-                kind: SymbolKind::FUNCTION,
-                tags: None,
-                deprecated: None,
-                range: Range::new(Position::new(0, 0), Position::new(0, 10)),
-                selection_range: Range::new(Position::new(0, 0), Position::new(0, 10)),
-                children: None,
-            }
-        ])))
-    }
+        params: FoldingRangeParams,
+    ) -> Result<Option<Vec<FoldingRange>>> {
+        let docs = self.docs.lock().await;
+        let Some(text) = docs.get(&params.text_document.uri) else {
+            return Ok(Some(vec![]));
+        };
 
-    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
-        Ok(Some(CompletionResponse::Array(vec![
-            CompletionItem::new_simple("fn".into(), "keyword".into()),
-            CompletionItem::new_simple("if".into(), "keyword".into()),
-            CompletionItem::new_simple("return".into(), "keyword".into()),
-        ])))
+        Ok(Some(compute_brace_folds(text)))
     }
 }
 
-fn fake_diagnostics(text: &str) -> Vec<Diagnostic> {
-    let mut out = Vec::new();
+fn compute_brace_folds(text: &str) -> Vec<FoldingRange> {
+    let mut folds = Vec::new();
+    let mut stack: Vec<u32> = Vec::new();
 
     for (line_idx, line) in text.lines().enumerate() {
-        if line.contains("todo_error") {
-            out.push(Diagnostic {
-                range: Range::new(
-                    Position::new(line_idx as u32, 0),
-                    Position::new(line_idx as u32, line.len() as u32),
-                ),
-                severity: Some(DiagnosticSeverity::ERROR),
-                code: None,
-                code_description: None,
-                source: Some("mini-lsp".into()),
-                message: "found todo_error".into(),
-                related_information: None,
-                tags: None,
-                data: None,
-            });
+        let line_idx = line_idx as u32;
+
+        for ch in line.chars() {
+            match ch {
+                '{' => stack.push(line_idx),
+                '}' => {
+                    if let Some(start_line) = stack.pop() {
+                        // Only fold multi-line blocks.
+                        if start_line < line_idx {
+                            folds.push(FoldingRange {
+                                start_line,
+                                start_character: None,
+                                end_line: line_idx,
+                                end_character: None,
+                                kind: Some(FoldingRangeKind::Region),
+                                collapsed_text: None,
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
-    out
+    folds
 }
 
 #[tokio::main]
@@ -125,6 +120,6 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend { client });
+    let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }
