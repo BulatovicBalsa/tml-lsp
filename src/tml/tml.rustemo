@@ -10,11 +10,11 @@ external_declaration        : function_definition
                             | assignment_statement
                             ;
 
-function_definition         : 'fn' id=id '(' parameters_list=parameter*[comma] ')' ret_type=type_spec? ':'
+function_definition         : 'fn' id=Id '(' parameters_list=parameter*[Comma] ')' ret_type=type_spec? ':'
                                statement_block=statement_block 'end'
                             ;
 
-parameter                   : _type=type_spec id=id default=default_param_value?
+parameter                   : _type=type_spec id=Id default=default_param_value?
                             ;
 
 default_param_value         : '=' value=expression
@@ -33,7 +33,7 @@ simple_type                 : _type=simple_type_spec
 
 derived_type                : name=dot_access_expression
                               brackets='[]'* //better put '[' ']', but causes S/R conflict
-                              type_kw
+                              TypeKw
                             ;
 
 simple_type_spec            : 'int' | 'uint' | 'real' | 'bool' | 'str' ;
@@ -41,15 +41,15 @@ simple_type_spec            : 'int' | 'uint' | 'real' | 'bool' | 'str' ;
 tensor_constructor          : 'tensor'
                               '<'
                               _type=type_spec
-                              comma
-                              dimensions=expression+[comma]
+                              Comma
+                              dimensions=expression+[Comma]
                               '>'
                             ;
 
 //alternative shorter notation for tensor type constructor
 //tensor_constructor          : _type=type_spec
 //                              '['
-//                              dimensions=expression+[comma]
+//                              dimensions=expression+[Comma]
 //                              ']'
 //                            ;
 
@@ -84,7 +84,7 @@ iteration_statement         : for_iteration_statement
                             | while_iteration_statement
                             ;
 
-for_iteration_statement     : 'for' idx=id '=' iterator_expression=expression ':' statement_block=statement_block 'end'
+for_iteration_statement     : 'for' idx=Id '=' iterator_expression=expression ':' statement_block=statement_block 'end'
                             ;
 
 while_iteration_statement   : 'while' condition=expression ':' statement_block=statement_block 'end'
@@ -106,12 +106,12 @@ empty_return                : 'return' {shift};
 
 return_value                : 'return' ret_val=expression;
 
-exists_statement            : 'exists' guarded=dot_access_expression+[comma] ':'
+exists_statement            : 'exists' guarded=dot_access_expression+[Comma] ':'
                               statement_block=statement_block
                               else_clause=else_clause? 'end'
                             ;
 
-not_exists_statement        : 'not' 'exists' guarded=dot_access_expression+[comma] ':'
+not_exists_statement        : 'not' 'exists' guarded=dot_access_expression+[Comma] ':'
                               statement_block=statement_block
                               else_clause=else_clause? 'end'
                             ;
@@ -127,7 +127,7 @@ var_assignment_statement    : var=dot_access_expression op=assignment_operator r
 tensor_assignment_statement : tensor=lvalue_tensor op=assignment_operator rvalue=expression {shift}
                             ;
 
-declaration_statement       : _type=type_spec id=id '=' rvalue=expression {shift}
+declaration_statement       : _type=type_spec id=Id '=' rvalue=expression {shift}
                             ;
 
 expression                  : logical_expression
@@ -135,7 +135,7 @@ expression                  : logical_expression
                             | math_expression
                             ;
 
-attribute_access            : expr=expression dot attr=id
+attribute_access            : expr=expression Dot attr=Id
                             ;
 
 assignment_operator         : '=' | '*=' | '/=' | '%=' | '+=' | '-='
@@ -209,10 +209,10 @@ range_operand              : rvalue
                            | function_call
                            ;
 
-range_without_step_expression : start=range_operand dots stop=range_operand        {shift}
+range_without_step_expression : start=range_operand Dots stop=range_operand        {shift}
                               ;
 
-range_with_step_expression    : start=range_operand dots stop=range_operand dots step=range_operand
+range_with_step_expression    : start=range_operand Dots stop=range_operand Dots step=range_operand
                               ;
 
 expr_in_parenthesis        : '(' expr=expression ')'
@@ -224,10 +224,10 @@ tensor_literal             : '[' expr=cube ']'
 transpose_expression       : postfix_expression '\''  // transpose operator <'>
                            ;
 
-function_call              : id=id '(' arguments_list=argument*[comma] ')'
+function_call              : id=Id '(' arguments_list=argument*[Comma] ')'
                            ;
 
-index_expression_list      : index_expression_list=index_expression+[comma]
+index_expression_list      : index_expression_list=index_expression+[Comma]
                            ;
 
 index_expression           : index_copy_expr
@@ -256,10 +256,10 @@ index_upper_bound          : ':' upper_bound=expression
 index_lower_bound          : lower_bound=expression ':'
                            ;
 
-arguments_list             : arguments_list=argument+[comma]
+arguments_list             : arguments_list=argument+[Comma]
                            ;
 
-argument                   : id=id '=' value=expression
+argument                   : id=Id '=' value=expression
                            | value=expression
                            ;
 
@@ -272,17 +272,17 @@ index                      : '[' index=index_expression_list ']'
 tensor_expression          : expr=expression '[' index=index_expression_list ']'
                            ;
 
-dot_access_expression      : names=id+[dot]
+dot_access_expression      : names=Id+[Dot]
                              optional='?'?
                            ;
 
-array                      : elements=expression+[comma]
+array                      : elements=expression+[Comma]
                            ;
 
-matrix                     : elements=array+[semicolon]
+matrix                     : elements=array+[Semicolon]
                            ;
 
-cube                       : elements=matrix+[pipe]
+cube                       : elements=matrix+[Pipe]
                            ;
 
 constant                    : integer
@@ -292,23 +292,23 @@ constant                    : integer
                             | boolean
                             ;
 
-boolean                     : value=boolean_const
+boolean                     : value=BooleanConst
                             ;
 
-integer                     : value=integer_const
-                            | value=hexadecimal_const
-                            | value=binary_const
+integer                     : value=IntegerConst
+                            | value=HexadecimalConst
+                            | value=BinaryConst
                             ;
 
-unsigned_integer            : value=unsigned_integer_const
-                            | value=unsigned_hexadecimal_const
-                            | value=unsigned_binary_const
+unsigned_integer            : value=UnsignedIntegerConst
+                            | value=UnsignedHexadecimalConst
+                            | value=UnsignedBinaryConst
                             ;
 
-float                       : value=float_const
+float                       : value=FloatConst
                             ;
 
-string                      : value=string_const
+string                      : value=StringConst
                             ;
 
 // Needed for comments in our language
@@ -322,83 +322,83 @@ LayoutItem: WS | Comment;
 // ===================================== Terminals
 terminals
 
-square_brackets: '[]';
-question: '?';
-func: 'fn';
-oparen: '(';
-cparen: ')';
-colon: ':';
-endt: 'end';
-assign: '=';
-intt: 'int';
-uintt: 'uint';
-realt: 'real';
-boolt: 'bool';
-strt: 'str';
-tensort: 'tensor';
-lt: '<';
-gt: '>';
-le: '<=';
-ge: '>=';
-eq: '==';
-ift: 'if';
-elset: 'else';
-elseift: 'elseif';
-fort: 'for';
-whilet: 'while';
-breakt: 'break';
-continuet: 'continue';
-returnt: 'return';
-existst: 'exists';
-nott: 'not';
-mulassignt: '*=';
-divassignt: '/=';
-addassignt: '+=';
-subassignt: '-=';
-modassignt: '%=';
-ort: 'or';
-andt: 'and';
-noteqt: '!=';
-elvist: '?:';
-addt: '+';
-subt: '-';
-modt: '%';
-mult: '*';
-divt: '/';
-rwdivt: '\\\\';
-rdivt: '\\';
-powt: '**';
-osquare: '[';
-csquare: ']';
-transpose: '\'';
+SquareBrackets: '[]';
+Question: '?';
+Func: 'fn';
+OParen: '(';
+CParen: ')';
+Colon: ':';
+EndT: 'end';
+Assign: '=';
+IntT: 'int';
+UintT: 'uint';
+RealT: 'real';
+BoolT: 'bool';
+StrT: 'str';
+TensorT: 'tensor';
+Lt: '<';
+Gt: '>';
+Le: '<=';
+Ge: '>=';
+Eq: '==';
+IfT: 'if';
+ElseT: 'else';
+ElseifT: 'elseif';
+ForT: 'for';
+WhileT: 'while';
+BreakT: 'break';
+ContinueT: 'continue';
+ReturnT: 'return';
+ExistsT: 'exists';
+NotT: 'not';
+MulAssignT: '*=';
+DivAssignT: '/=';
+AddAssignT: '+=';
+SubAssignT: '-=';
+ModAssignT: '%=';
+OrT: 'or';
+AndT: 'and';
+NotEqT: '!=';
+ElvisT: '?:';
+AddT: '+';
+SubT: '-';
+ModT: '%';
+MulT: '*';
+DivT: '/';
+RWDivT: '\\\\';
+RDivT: '\\';
+PowT: '**';
+OSquare: '[';
+CSquare: ']';
+Transpose: '\'';
 
 
-unsigned_suffix: /[uU]/ ;
+UnsignedSuffix: /[uU]/ ;
 
 // NOTE: Minus sign '-' in the following terminals is never match, because of the
 // '-' math_expression rule.
 
-integer_const: /[-+]?[0-9]+(_[0-9]+)*/ {prefer} ;
-unsigned_integer_const: /[-+]?[0-9]+(_[0-9]+)*[uU]/ {prefer} ;
-hexadecimal_const: /0[xX][0-9a-fA-F]+/ ;
-unsigned_hexadecimal_const: /0[xX][0-9a-fA-F]+[uU]/ {prefer} ;
-binary_const: /0[bB][01]+/ ;
-unsigned_binary_const: /0[bB][01]+[uU]/                 {prefer} ;
+IntegerConst: /[-+]?[0-9]+(_[0-9]+)*/ {prefer} ;
+UnsignedIntegerConst: /[-+]?[0-9]+(_[0-9]+)*[uU]/ {prefer} ;
+HexadecimalConst: /0[xX][0-9a-fA-F]+/ ;
+UnsignedHexadecimalConst: /0[xX][0-9a-fA-F]+[uU]/ {prefer} ;
+BinaryConst: /0[bB][01]+/ ;
+UnsignedBinaryConst: /0[bB][01]+[uU]/                 {prefer} ;
 
 // valid reals 1.5, 1e10, 1_1e1_1 as in Octave
-float_const: /[-+]?[0-9]+(_[0-9]+)*(\.[0-9]+(_[0-9]+)*)?([eE][+-]?[0-9]+(_[0-9]+)*)?/ ;
-boolean_const: /true|false/ {prefer};
+FloatConst: /[-+]?[0-9]+(_[0-9]+)*(\.[0-9]+(_[0-9]+)*)?([eE][+-]?[0-9]+(_[0-9]+)*)?/ ;
+BooleanConst: /true|false/ {prefer};
 
-ellipsis: '...';
-dot: '.';
-dots: '..';
-comma: ',';
-semicolon: ';';
-pipe: '|';
-type_kw: '.type';
+Ellipsis: '...';
+Dot: '.';
+Dots: '..';
+Comma: ',';
+Semicolon: ';';
+Pipe: '|';
+TypeKw: '.type';
 
-string_const: /("([^"\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*")|('([^'\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*')/;
-id: /(?!type)[_a-zA-Z][_a-zA-Z0-9]*/;
+StringConst: /("([^"\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*")|('([^'\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*')/;
+Id: /(?!type)[_a-zA-Z][_a-zA-Z0-9]*/;
 KEYWORD: /\w+/;
 
 // Needed for comments in our language
