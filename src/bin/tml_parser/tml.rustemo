@@ -398,7 +398,7 @@ Pipe: '|';
 TypeKw: '.type';
 
 StringConst: /("([^"\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*")|('([^'\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*')/;
-Id: /(?!type)[_a-zA-Z][_a-zA-Z0-9]*/;
+Id: /[_a-zA-Z][_a-zA-Z0-9]*/;
 KEYWORD: /\w+/;
 
 // Needed for comments in our language
