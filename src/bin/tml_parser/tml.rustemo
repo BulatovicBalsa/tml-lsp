@@ -17,10 +17,10 @@ FunctionDefinition         : 'fn' id=Id '(' parameters_list=Parameter*[Comma] ')
 Parameter                   : _type=TypeSpec id=Id default=DefaultParamValue?
                             ;
 
-DefaultParamValue         : '=' value=expression
+DefaultParamValue         : '=' value=Expression
                             ;
 
-TypeCastExpression        : _type=TypeSpec '(' expr=expression ')'
+TypeCastExpression        : _type=TypeSpec '(' expr=Expression ')'
                             ;
 
 TypeSpec                   : SimpleType
@@ -42,21 +42,21 @@ TensorConstructor          : 'tensor'
                               '<'
                               _type=TypeSpec
                               Comma
-                              dimensions=expression+[Comma]
+                              dimensions=Expression+[Comma]
                               '>'
                             ;
 
 //alternative shorter notation for tensor type constructor
 //tensor_constructor          : _type=type_spec
 //                              '['
-//                              dimensions=expression+[Comma]
+//                              dimensions=Expression+[Comma]
 //                              ']'
 //                            ;
 
-StatementBlock             : statements=statement+
+StatementBlock             : statements=Statement+
                             ;
 
-statement                   : FunctionCall
+Statement                   : FunctionCall
                             | SelectionStatement
                             | IterationStatement
                             | JumpStatement
@@ -69,7 +69,7 @@ statement                   : FunctionCall
 FunctionCallStatement     : FunctionCall
                             ;
 
-SelectionStatement         : 'if' condition=expression ':' if_statement_block=StatementBlock
+SelectionStatement         : 'if' condition=Expression ':' if_statement_block=StatementBlock
                               elseif_clause=ElseIfClause*
                               else_clause=ElseClause? 'end'
                             ;
@@ -77,17 +77,17 @@ SelectionStatement         : 'if' condition=expression ':' if_statement_block=St
 ElseClause                 : 'else' ':' else_statement_block=StatementBlock
                             ;
 
-ElseIfClause               : 'elseif' condition=expression ':' elseif_statement_block=StatementBlock
+ElseIfClause               : 'elseif' condition=Expression ':' elseif_statement_block=StatementBlock
                             ;
 
 IterationStatement         : ForIterationStatement
                             | WhileIterationStatement
                             ;
 
-ForIterationStatement     : 'for' idx=Id '=' iterator_expression=expression ':' statement_block=StatementBlock 'end'
+ForIterationStatement     : 'for' idx=Id '=' iterator_expression=Expression ':' statement_block=StatementBlock 'end'
                             ;
 
-WhileIterationStatement   : 'while' condition=expression ':' statement_block=StatementBlock 'end'
+WhileIterationStatement   : 'while' condition=Expression ':' statement_block=StatementBlock 'end'
                             ;
 
 JumpStatement              : BreakStatement
@@ -104,7 +104,7 @@ ReturnStatement            : EmptyReturn
 
 EmptyReturn                : 'return' {shift};
 
-ReturnValue                : 'return' ret_val=expression;
+ReturnValue                : 'return' ret_val=Expression;
 
 ExistsStatement            : 'exists' guarded=DotAccessExpression+[Comma] ':'
                               statement_block=StatementBlock
@@ -121,21 +121,21 @@ AssignmentStatement        : VarAssignmentStatement
                             ;
 
 // shift in the following rules are used to make expression greedy
-VarAssignmentStatement    : var=DotAccessExpression op=AssignmentOperator rvalue=expression {shift}
+VarAssignmentStatement    : var=DotAccessExpression op=AssignmentOperator rvalue=Expression {shift}
                             ;
 
-TensorAssignmentStatement : tensor=LValueTensor op=AssignmentOperator rvalue=expression {shift}
+TensorAssignmentStatement : tensor=LValueTensor op=AssignmentOperator rvalue=Expression {shift}
                             ;
 
-DeclarationStatement       : _type=TypeSpec id=Id '=' rvalue=expression {shift}
+DeclarationStatement       : _type=TypeSpec id=Id '=' rvalue=Expression {shift}
                             ;
 
-expression                  : LogicalExpression
+Expression                  : LogicalExpression
                             | TypeCastExpression
-                            | math_expression
+                            | MathExpression
                             ;
 
-AttributeAccess            : expr=expression Dot attr=Id
+AttributeAccess            : expr=Expression Dot attr=Id
                             ;
 
 AssignmentOperator         : '=' | '*=' | '/=' | '%=' | '+=' | '-='
@@ -146,41 +146,41 @@ LogicalExpression          : BinaryRelationalExpression
                             | UnaryRelationalExpression
                             ;
 
-UnaryLogicalExpression   : left_expr=expression op='or'  right_expr=expression {left, 1}
-                            | left_expr=expression op='and' right_expr=expression  {left, 2}
+UnaryLogicalExpression   : left_expr=Expression op='or'  right_expr=Expression {left, 1}
+                            | left_expr=Expression op='and' right_expr=Expression  {left, 2}
                             ;
 
-UnaryRelationalExpression    : op='not'  expr=expression                                     {right, 3}
+UnaryRelationalExpression    : op='not'  expr=Expression                                     {right, 3}
                             ;
 
-BinaryRelationalExpression     : left_expr=expression op='==' right_expr=expression     {left, 4}
-                                 | left_expr=expression op='!=' right_expr=expression     {left, 4}
-                                 | left_expr=expression op='>'  right_expr=expression     {left, 4}
-                                 | left_expr=expression op='<'  right_expr=expression     {left, 4}
-                                 | left_expr=expression op='>=' right_expr=expression     {left, 4}
-                                 | left_expr=expression op='<=' right_expr=expression     {left, 4}
+BinaryRelationalExpression     : left_expr=Expression op='==' right_expr=Expression     {left, 4}
+                                 | left_expr=Expression op='!=' right_expr=Expression     {left, 4}
+                                 | left_expr=Expression op='>'  right_expr=Expression     {left, 4}
+                                 | left_expr=Expression op='<'  right_expr=Expression     {left, 4}
+                                 | left_expr=Expression op='>=' right_expr=Expression     {left, 4}
+                                 | left_expr=Expression op='<=' right_expr=Expression     {left, 4}
                                  ;
 
-math_expression            : PostfixExpression
+MathExpression            : PostfixExpression
                            | BinaryMathExpression
                            | UnaryMathExpression
                            | ElvisExpression
                            ;
 
-ElvisExpression           : left_expr=expression '?:'  right_expr=expression {left, 5}
+ElvisExpression           : left_expr=Expression '?:'  right_expr=Expression {left, 5}
                            ;
 
-BinaryMathExpression     : left_expr=expression op='+'  right_expr=expression {left, 5}
-                           | left_expr=expression op='-'  right_expr=expression {left, 5}
-                           | left_expr=expression op='%'  right_expr=expression {left, 6}
-                           | left_expr=expression op='*'  right_expr=expression {left, 6}
-                           | left_expr=expression op='/'  right_expr=expression {left, 6}
-                           | left_expr=expression op='\\' right_expr=expression {left, 6} //should this be removed?
-                           | left_expr=expression op='**' right_expr=expression {left, 8}
+BinaryMathExpression     : left_expr=Expression op='+'  right_expr=Expression {left, 5}
+                           | left_expr=Expression op='-'  right_expr=Expression {left, 5}
+                           | left_expr=Expression op='%'  right_expr=Expression {left, 6}
+                           | left_expr=Expression op='*'  right_expr=Expression {left, 6}
+                           | left_expr=Expression op='/'  right_expr=Expression {left, 6}
+                           | left_expr=Expression op='\\' right_expr=Expression {left, 6} //should this be removed?
+                           | left_expr=Expression op='**' right_expr=Expression {left, 8}
                            ;
 
-UnaryMathExpression      : op='-' expr=expression                             {right, 7}
-                           | op='+' expr=expression                             {right, 7}
+UnaryMathExpression      : op='-' expr=Expression                             {right, 7}
+                           | op='+' expr=Expression                             {right, 7}
                            ;
 
 
@@ -188,7 +188,7 @@ PostfixExpression         : RValue
                            | Constant
                            | ExprInParenthesis
                            | TransposeExpression
-                           | tensor_literal
+                           | TensorLiteral
                            | TensorExpression
                            | FunctionCall
                            | AttributeAccess
@@ -215,10 +215,10 @@ RangeWithoutStepExpression : start=RangeOperand Dots stop=RangeOperand        {s
 RangeWithStepExpression    : start=RangeOperand Dots stop=RangeOperand Dots step=RangeOperand
                               ;
 
-ExprInParenthesis        : '(' expr=expression ')'
+ExprInParenthesis        : '(' expr=Expression ')'
                            ;
 
-tensor_literal             : '[' expr=Cube ']'
+TensorLiteral             : '[' expr=Cube ']'
                            ;
 
 TransposeExpression       : PostfixExpression '\''  // transpose operator <'>
@@ -241,26 +241,26 @@ IndexExpression           : IndexCopyExpr
 IndexCopyExpr            : expr=':'
                            ;
 
-IndexFromPosition        : expr=expression
+IndexFromPosition        : expr=Expression
                            ;
 
-IndexBounds               : lower_bound=expression ':' upper_bound=expression
+IndexBounds               : lower_bound=Expression ':' upper_bound=Expression
                            ;
 
-IndexBoundsStep          : lower_bound=expression ':' upper_bound=expression ':' step=expression
+IndexBoundsStep          : lower_bound=Expression ':' upper_bound=Expression ':' step=Expression
                            ;
 
-IndexUpperBound          : ':' upper_bound=expression
+IndexUpperBound          : ':' upper_bound=Expression
                            ;
 
-IndexLowerBound          : lower_bound=expression ':'
+IndexLowerBound          : lower_bound=Expression ':'
                            ;
 
 ArgumentsList             : arguments_list=Argument+[Comma]
                            ;
 
-Argument                   : id=Id '=' value=expression
-                           | value=expression
+Argument                   : id=Id '=' value=Expression
+                           | value=Expression
                            ;
 
 LValueTensor              : expr=DotAccessExpression
@@ -269,14 +269,14 @@ LValueTensor              : expr=DotAccessExpression
 Index                      : '[' index=IndexExpressionList ']'
                            ;
 
-TensorExpression          : expr=expression '[' index=IndexExpressionList ']'
+TensorExpression          : expr=Expression '[' index=IndexExpressionList ']'
                            ;
 
 DotAccessExpression      : names=Id+[Dot]
                              optional='?'?
                            ;
 
-Array                      : elements=expression+[Comma]
+Array                      : elements=Expression+[Comma]
                            ;
 
 Matrix                     : elements=Array+[Semicolon]
@@ -287,8 +287,8 @@ Cube                       : elements=Matrix+[Pipe]
 
 Constant                    : Integer
                             | UnsignedInteger
-                            | Float
-                            | String
+                            | TmlFloat
+                            | TmlString
                             | Boolean
                             ;
 
@@ -305,10 +305,10 @@ UnsignedInteger            : value=UnsignedIntegerConst
                             | value=UnsignedBinaryConst
                             ;
 
-Float                       : value=FloatConst
+TmlFloat                       : value=FloatConst
                             ;
 
-String                      : value=StringConst
+TmlString                      : value=StringConst
                             ;
 
 // Needed for comments in our language
