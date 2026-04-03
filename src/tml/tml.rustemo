@@ -2,45 +2,45 @@
 // Grammar definition for TML
 //
 
-translation_unit            : ext_decls=external_declaration+
+TranslationUnit            : ext_decls=ExternalDeclaration+
                             ;
 
-external_declaration        : function_definition
-                            | declaration_statement
-                            | assignment_statement
+ExternalDeclaration        : FunctionDefinition
+                            | DeclarationStatement
+                            | AssignmentStatement
                             ;
 
-function_definition         : 'fn' id=Id '(' parameters_list=parameter*[Comma] ')' ret_type=type_spec? ':'
-                               statement_block=statement_block 'end'
+FunctionDefinition         : 'fn' id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? ':'
+                               statement_block=StatementBlock 'end'
                             ;
 
-parameter                   : _type=type_spec id=Id default=default_param_value?
+Parameter                   : _type=TypeSpec id=Id default=DefaultParamValue?
                             ;
 
-default_param_value         : '=' value=expression
+DefaultParamValue         : '=' value=expression
                             ;
 
-type_cast_expression        : _type=type_spec '(' expr=expression ')'
+TypeCastExpression        : _type=TypeSpec '(' expr=expression ')'
                             ;
 
-type_spec                   : simple_type
-                            | derived_type
-                            | tensor_constructor
+TypeSpec                   : SimpleType
+                            | DerivedType
+                            | TensorConstructor
                             ;
 
-simple_type                 : _type=simple_type_spec
+SimpleType                 : _type=SimpleTypeSpec
                             ;
 
-derived_type                : name=dot_access_expression
+DerivedType                : name=DotAccessExpression
                               brackets='[]'* //better put '[' ']', but causes S/R conflict
                               TypeKw
                             ;
 
-simple_type_spec            : 'int' | 'uint' | 'real' | 'bool' | 'str' ;
+SimpleTypeSpec            : 'int' | 'uint' | 'real' | 'bool' | 'str' ;
 
-tensor_constructor          : 'tensor'
+TensorConstructor          : 'tensor'
                               '<'
-                              _type=type_spec
+                              _type=TypeSpec
                               Comma
                               dimensions=expression+[Comma]
                               '>'
@@ -53,107 +53,107 @@ tensor_constructor          : 'tensor'
 //                              ']'
 //                            ;
 
-statement_block             : statements=statement+
+StatementBlock             : statements=statement+
                             ;
 
-statement                   : function_call
-                            | selection_statement
-                            | iteration_statement
-                            | jump_statement
-                            | exists_statement
-                            | not_exists_statement
-                            | assignment_statement
-                            | declaration_statement
+statement                   : FunctionCall
+                            | SelectionStatement
+                            | IterationStatement
+                            | JumpStatement
+                            | ExistsStatement
+                            | NotExistsStatement
+                            | AssignmentStatement
+                            | DeclarationStatement
                             ;
 
-function_call_statement     : function_call
+FunctionCallStatement     : FunctionCall
                             ;
 
-selection_statement         : 'if' condition=expression ':' if_statement_block=statement_block
-                              elseif_clause=elseif_clause*
-                              else_clause=else_clause? 'end'
+SelectionStatement         : 'if' condition=expression ':' if_statement_block=StatementBlock
+                              elseif_clause=ElseIfClause*
+                              else_clause=ElseClause? 'end'
                             ;
 
-else_clause                 : 'else' ':' else_statement_block=statement_block
+ElseClause                 : 'else' ':' else_statement_block=StatementBlock
                             ;
 
-elseif_clause               : 'elseif' condition=expression ':' elseif_statement_block=statement_block
+ElseIfClause               : 'elseif' condition=expression ':' elseif_statement_block=StatementBlock
                             ;
 
-iteration_statement         : for_iteration_statement
-                            | while_iteration_statement
+IterationStatement         : ForIterationStatement
+                            | WhileIterationStatement
                             ;
 
-for_iteration_statement     : 'for' idx=Id '=' iterator_expression=expression ':' statement_block=statement_block 'end'
+ForIterationStatement     : 'for' idx=Id '=' iterator_expression=expression ':' statement_block=StatementBlock 'end'
                             ;
 
-while_iteration_statement   : 'while' condition=expression ':' statement_block=statement_block 'end'
+WhileIterationStatement   : 'while' condition=expression ':' statement_block=StatementBlock 'end'
                             ;
 
-jump_statement              : break_statement
-                            | return_statement
-                            | continue_statement
+JumpStatement              : BreakStatement
+                            | ReturnStatement
+                            | ContinueStatement
                             ;
 
-break_statement             : 'break';
-continue_statement          : 'continue';
+BreakStatement             : 'break';
+ContinueStatement          : 'continue';
 
-return_statement            : empty_return
-                            | return_value
+ReturnStatement            : EmptyReturn
+                            | ReturnValue
                             ;
 
-empty_return                : 'return' {shift};
+EmptyReturn                : 'return' {shift};
 
-return_value                : 'return' ret_val=expression;
+ReturnValue                : 'return' ret_val=expression;
 
-exists_statement            : 'exists' guarded=dot_access_expression+[Comma] ':'
-                              statement_block=statement_block
-                              else_clause=else_clause? 'end'
+ExistsStatement            : 'exists' guarded=DotAccessExpression+[Comma] ':'
+                              statement_block=StatementBlock
+                              else_clause=ElseClause? 'end'
                             ;
 
-not_exists_statement        : 'not' 'exists' guarded=dot_access_expression+[Comma] ':'
-                              statement_block=statement_block
-                              else_clause=else_clause? 'end'
+NotExistsStatement        : 'not' 'exists' guarded=DotAccessExpression+[Comma] ':'
+                              statement_block=StatementBlock
+                              else_clause=ElseClause? 'end'
                             ;
 
-assignment_statement        : var_assignment_statement
-                            | tensor_assignment_statement
+AssignmentStatement        : VarAssignmentStatement
+                            | TensorAssignmentStatement
                             ;
 
 // shift in the following rules are used to make expression greedy
-var_assignment_statement    : var=dot_access_expression op=assignment_operator rvalue=expression {shift}
+VarAssignmentStatement    : var=DotAccessExpression op=AssignmentOperator rvalue=expression {shift}
                             ;
 
-tensor_assignment_statement : tensor=lvalue_tensor op=assignment_operator rvalue=expression {shift}
+TensorAssignmentStatement : tensor=LValueTensor op=AssignmentOperator rvalue=expression {shift}
                             ;
 
-declaration_statement       : _type=type_spec id=Id '=' rvalue=expression {shift}
+DeclarationStatement       : _type=TypeSpec id=Id '=' rvalue=expression {shift}
                             ;
 
-expression                  : logical_expression
-                            | type_cast_expression
+expression                  : LogicalExpression
+                            | TypeCastExpression
                             | math_expression
                             ;
 
-attribute_access            : expr=expression Dot attr=Id
+AttributeAccess            : expr=expression Dot attr=Id
                             ;
 
-assignment_operator         : '=' | '*=' | '/=' | '%=' | '+=' | '-='
+AssignmentOperator         : '=' | '*=' | '/=' | '%=' | '+=' | '-='
                             ;
 
-logical_expression          : binary_relational_expression
-                            | binary_logical_expression
-                            | unary_logical_expression
+LogicalExpression          : BinaryRelationalExpression
+                            | UnaryLogicalExpression
+                            | UnaryRelationalExpression
                             ;
 
-binary_logical_expression   : left_expr=expression op='or'  right_expr=expression {left, 1}
+UnaryLogicalExpression   : left_expr=expression op='or'  right_expr=expression {left, 1}
                             | left_expr=expression op='and' right_expr=expression  {left, 2}
                             ;
 
-unary_logical_expression    : op='not'  expr=expression                                     {right, 3}
+UnaryRelationalExpression    : op='not'  expr=expression                                     {right, 3}
                             ;
 
-binary_relational_expression     : left_expr=expression op='==' right_expr=expression     {left, 4}
+BinaryRelationalExpression     : left_expr=expression op='==' right_expr=expression     {left, 4}
                                  | left_expr=expression op='!=' right_expr=expression     {left, 4}
                                  | left_expr=expression op='>'  right_expr=expression     {left, 4}
                                  | left_expr=expression op='<'  right_expr=expression     {left, 4}
@@ -161,16 +161,16 @@ binary_relational_expression     : left_expr=expression op='==' right_expr=expre
                                  | left_expr=expression op='<=' right_expr=expression     {left, 4}
                                  ;
 
-math_expression            : postfix_expression
-                           | binary_math_expression
-                           | unary_math_expression
-                           | elvis_expression
+math_expression            : PostfixExpression
+                           | BinaryMathExpression
+                           | UnaryMathExpression
+                           | ElvisExpression
                            ;
 
-elvis_expression           : left_expr=expression '?:'  right_expr=expression {left, 5}
+ElvisExpression           : left_expr=expression '?:'  right_expr=expression {left, 5}
                            ;
 
-binary_math_expression     : left_expr=expression op='+'  right_expr=expression {left, 5}
+BinaryMathExpression     : left_expr=expression op='+'  right_expr=expression {left, 5}
                            | left_expr=expression op='-'  right_expr=expression {left, 5}
                            | left_expr=expression op='%'  right_expr=expression {left, 6}
                            | left_expr=expression op='*'  right_expr=expression {left, 6}
@@ -179,136 +179,136 @@ binary_math_expression     : left_expr=expression op='+'  right_expr=expression 
                            | left_expr=expression op='**' right_expr=expression {left, 8}
                            ;
 
-unary_math_expression      : op='-' expr=expression                             {right, 7}
+UnaryMathExpression      : op='-' expr=expression                             {right, 7}
                            | op='+' expr=expression                             {right, 7}
                            ;
 
 
-postfix_expression         : rvalue
-                           | constant
-                           | expr_in_parenthesis
-                           | transpose_expression
+PostfixExpression         : RValue
+                           | Constant
+                           | ExprInParenthesis
+                           | TransposeExpression
                            | tensor_literal
-                           | tensor_expression
-                           | function_call
-                           | attribute_access
-                           | range_expression
+                           | TensorExpression
+                           | FunctionCall
+                           | AttributeAccess
+                           | RangeExpression
                            ;
 
-// rvalue is a wrapper used for simplifying handling of undeclared variable errors
-rvalue                     : _ref=dot_access_expression
+// RValue is a wrapper used for simplifying handling of undeclared variable errors
+RValue                     : _ref=DotAccessExpression
                            ;
 
-range_expression           : range_without_step_expression
-                           | range_with_step_expression
+RangeExpression           : RangeWithoutStepExpression
+                           | RangeWithStepExpression
                            ;
 
-range_operand              : rvalue
-                           | constant
-                           | expr_in_parenthesis
-                           | function_call
+RangeOperand              : RValue
+                           | Constant
+                           | ExprInParenthesis
+                           | FunctionCall
                            ;
 
-range_without_step_expression : start=range_operand Dots stop=range_operand        {shift}
+RangeWithoutStepExpression : start=RangeOperand Dots stop=RangeOperand        {shift}
                               ;
 
-range_with_step_expression    : start=range_operand Dots stop=range_operand Dots step=range_operand
+RangeWithStepExpression    : start=RangeOperand Dots stop=RangeOperand Dots step=RangeOperand
                               ;
 
-expr_in_parenthesis        : '(' expr=expression ')'
+ExprInParenthesis        : '(' expr=expression ')'
                            ;
 
-tensor_literal             : '[' expr=cube ']'
+tensor_literal             : '[' expr=Cube ']'
                            ;
 
-transpose_expression       : postfix_expression '\''  // transpose operator <'>
+TransposeExpression       : PostfixExpression '\''  // transpose operator <'>
                            ;
 
-function_call              : id=Id '(' arguments_list=argument*[Comma] ')'
+FunctionCall              : id=Id '(' arguments_list=Argument*[Comma] ')'
                            ;
 
-index_expression_list      : index_expression_list=index_expression+[Comma]
+IndexExpressionList      : index_expression_list=IndexExpression+[Comma]
                            ;
 
-index_expression           : index_copy_expr
-                           | index_from_position
-                           | index_bounds
-                           | index_bounds_step
-                           | index_upper_bound
-                           | index_lower_bound
+IndexExpression           : IndexCopyExpr
+                           | IndexFromPosition
+                           | IndexBounds
+                           | IndexBoundsStep
+                           | IndexUpperBound
+                           | IndexLowerBound
                            ;
 
-index_copy_expr            : expr=':'
+IndexCopyExpr            : expr=':'
                            ;
 
-index_from_position        : expr=expression
+IndexFromPosition        : expr=expression
                            ;
 
-index_bounds               : lower_bound=expression ':' upper_bound=expression
+IndexBounds               : lower_bound=expression ':' upper_bound=expression
                            ;
 
-index_bounds_step          : lower_bound=expression ':' upper_bound=expression ':' step=expression
+IndexBoundsStep          : lower_bound=expression ':' upper_bound=expression ':' step=expression
                            ;
 
-index_upper_bound          : ':' upper_bound=expression
+IndexUpperBound          : ':' upper_bound=expression
                            ;
 
-index_lower_bound          : lower_bound=expression ':'
+IndexLowerBound          : lower_bound=expression ':'
                            ;
 
-arguments_list             : arguments_list=argument+[Comma]
+ArgumentsList             : arguments_list=Argument+[Comma]
                            ;
 
-argument                   : id=Id '=' value=expression
+Argument                   : id=Id '=' value=expression
                            | value=expression
                            ;
 
-lvalue_tensor              : expr=dot_access_expression
-                             indices=index+
+LValueTensor              : expr=DotAccessExpression
+                             indices=Index+
                            ;
-index                      : '[' index=index_expression_list ']'
-                           ;
-
-tensor_expression          : expr=expression '[' index=index_expression_list ']'
+Index                      : '[' index=IndexExpressionList ']'
                            ;
 
-dot_access_expression      : names=Id+[Dot]
+TensorExpression          : expr=expression '[' index=IndexExpressionList ']'
+                           ;
+
+DotAccessExpression      : names=Id+[Dot]
                              optional='?'?
                            ;
 
-array                      : elements=expression+[Comma]
+Array                      : elements=expression+[Comma]
                            ;
 
-matrix                     : elements=array+[Semicolon]
+Matrix                     : elements=Array+[Semicolon]
                            ;
 
-cube                       : elements=matrix+[Pipe]
+Cube                       : elements=Matrix+[Pipe]
                            ;
 
-constant                    : integer
-                            | unsigned_integer
-                            | float
-                            | string
-                            | boolean
+Constant                    : Integer
+                            | UnsignedInteger
+                            | Float
+                            | String
+                            | Boolean
                             ;
 
-boolean                     : value=BooleanConst
+Boolean                     : value=BooleanConst
                             ;
 
-integer                     : value=IntegerConst
+Integer                     : value=IntegerConst
                             | value=HexadecimalConst
                             | value=BinaryConst
                             ;
 
-unsigned_integer            : value=UnsignedIntegerConst
+UnsignedInteger            : value=UnsignedIntegerConst
                             | value=UnsignedHexadecimalConst
                             | value=UnsignedBinaryConst
                             ;
 
-float                       : value=FloatConst
+Float                       : value=FloatConst
                             ;
 
-string                      : value=StringConst
+String                      : value=StringConst
                             ;
 
 // Needed for comments in our language
