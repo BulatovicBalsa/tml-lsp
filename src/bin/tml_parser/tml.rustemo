@@ -292,7 +292,8 @@ Constant                    : Integer
                             | Boolean
                             ;
 
-Boolean                     : value=BooleanConst
+Boolean                     : value=TrueConst
+                            | value=FalseConst
                             ;
 
 Integer                     : value=IntegerConst
@@ -387,7 +388,8 @@ UnsignedBinaryConst: /0[bB][01]+[uU]/                 {prefer} ;
 
 // valid reals 1.5, 1e10, 1_1e1_1 as in Octave
 FloatConst: /[-+]?[0-9]+(_[0-9]+)*(\.[0-9]+(_[0-9]+)*)?([eE][+-]?[0-9]+(_[0-9]+)*)?/ ;
-BooleanConst: /true|false/ {prefer};
+TrueConst: /true/ {prefer};
+FalseConst: /false/ {prefer};
 
 Ellipsis: '...';
 Dot: '.';
