@@ -2,43 +2,59 @@
 // Grammar definition for TML
 //
 
-TranslationUnit            : ext_decls=ExternalDeclaration+
+TranslationUnit             : ext_decls=ExternalDeclaration+
                             ;
 
-ExternalDeclaration        : FunctionDefinition
+ExternalDeclaration         : FunctionDefinition
                             | DeclarationStatement
                             | AssignmentStatement
+                            | IoDeclarationStatement
+                            | IoWriteStatement
+                            | MacroFor
+                            | MacroIf
                             ;
 
-FunctionDefinition         : 'fn' id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? ':'
-                               statement_block=StatementBlock 'end'
+MacroFor                    : 'macro' body=ForIterationStatement
+                            ;
+
+MacroIf                     : 'macro' body=SelectionStatement
+                            ;
+
+FunctionDefinition          : 'fn' id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? HeaderColon
+                               statement_block=StatementBlock
+                              'end'
                             ;
 
 Parameter                   : _type=TypeSpec id=Id default=DefaultParamValue?
                             ;
 
-DefaultParamValue         : '=' value=Expression
+DefaultParamValue           : '=' value=Expression
                             ;
 
-TypeCastExpression        : _type=TypeSpec '(' expr=Expression ')'
+TypeCastExpression          : _type=TypeSpec '(' expr=Expression ')'
                             ;
 
-TypeSpec                   : SimpleType
+NarrowExpression            : 'narrow' '(' expr=Expression ')'
+                            ;
+
+TypeSpec                    : SimpleType
                             | DerivedType
                             | TensorConstructor
                             ;
 
-SimpleType                 : _type=SimpleTypeSpec
+SimpleType                  : _type=SimpleTypeSpec
                             ;
 
-DerivedType                : name=DotAccessExpression
+DerivedType                 : name=DotAccessExpression
                               brackets='[]'* //better put '[' ']', but causes S/R conflict
                               TypeKw
                             ;
 
-SimpleTypeSpec            : 'int' | 'uint' | 'real' | 'bool' | 'str' ;
+SimpleTypeSpec              : 'int' | 'uint' | 'real' | 'bool' | 'str' | 'char' ;
 
-TensorConstructor          : 'tensor'
+IoDirection                 : 'in' | 'out';
+
+TensorConstructor           : 'tensor'
                               '<'
                               _type=TypeSpec
                               Comma
@@ -46,235 +62,331 @@ TensorConstructor          : 'tensor'
                               '>'
                             ;
 
-//alternative shorter notation for tensor type constructor
-//tensor_constructor          : _type=type_spec
-//                              '['
-//                              dimensions=Expression+[Comma]
-//                              ']'
-//                            ;
-
-StatementBlock             : statements=Statement+
+IoConstructor               : direction=IoDirection
+                              '<'
+                              _type=TypeSpec
+                              Comma
+                              address=Expression
+                              io_flags=IoFlagsSpec?
+                              '>'
+                              {reduce}
                             ;
 
-Statement                   : FunctionCall
+
+IoFlagsSpec                 : Comma io_type='dma'
+                            | Comma io_type='dma' Comma io_range=IoRangeSpec
+                            | Comma io_range=IoRangeSpec
+                            | Comma io_range=IoRangeSpec Comma io_type='dma'
+                            ;
+
+IoRangeSpec                 : 'hil' | 'ao' | 'abs' | 'shared' | 'ext' | 'sink'
+                            ;
+
+StatementBlock              : statements=Statement+
+                            ;
+
+Statement                   : FunctionCallStatement
                             | SelectionStatement
                             | IterationStatement
                             | JumpStatement
                             | ExistsStatement
                             | NotExistsStatement
+                            | FeedthroughStatement
+                            | NotFeedthroughStatement
                             | AssignmentStatement
                             | DeclarationStatement
+                            | IoDeclarationStatement
+                            | IoWriteStatement
+                            | NoopStatement
+                            | MacroFor
+                            | MacroIf
                             ;
 
-FunctionCallStatement     : FunctionCall
+FunctionCallStatement       : call=FunctionCall {shift}
                             ;
 
-SelectionStatement         : 'if' condition=Expression ':' if_statement_block=StatementBlock
-                              elseif_clause=ElseIfClause*
-                              else_clause=ElseClause? 'end'
+SelectionStatement          : 'if' condition=Expression HeaderColon
+                                if_statement_block=StatementBlock
+                                elseif_clause=ElseIfClause*
+                                else_clause=ElseClause?
+                              'end'
                             ;
 
-ElseClause                 : 'else' ':' else_statement_block=StatementBlock
+ElseClause                  : 'else' HeaderColon
+                                else_statement_block=StatementBlock
                             ;
 
-ElseIfClause               : 'elseif' condition=Expression ':' elseif_statement_block=StatementBlock
+ElseIfClause                : 'elseif' condition=Expression HeaderColon
+                                elseif_statement_block=StatementBlock
                             ;
 
-IterationStatement         : ForIterationStatement
+IterationStatement          : ForIterationStatement
                             | WhileIterationStatement
                             ;
 
-ForIterationStatement     : 'for' idx=Id '=' iterator_expression=Expression ':' statement_block=StatementBlock 'end'
+ForIterationStatement       : 'for' header=ForIterationHeader HeaderColon
+                                body=ForIterationBody
+                              'end'
                             ;
 
-WhileIterationStatement   : 'while' condition=Expression ':' statement_block=StatementBlock 'end'
+ForIterationHeader          : idx=Id '=' iterator_expression=IteratorExpression
                             ;
 
-JumpStatement              : BreakStatement
+ForIterationBody            : statement_block=StatementBlock
+                            ;
+
+IteratorExpression          : Expression
+                            | RangeFromStepTo
+                            | RangeFromTo
+                            ;
+
+WhileIterationStatement     : 'while' condition=Expression HeaderColon
+                                statement_block=StatementBlock
+                              'end'
+                            ;
+
+JumpStatement               : BreakStatement
                             | ReturnStatement
                             | ContinueStatement
                             ;
 
-BreakStatement             : 'break';
-ContinueStatement          : 'continue';
+BreakStatement              : 'break';
+ContinueStatement           : 'continue';
 
-ReturnStatement            : EmptyReturn
+ReturnStatement             : EmptyReturn
                             | ReturnValue
                             ;
 
-EmptyReturn                : 'return' {shift};
+EmptyReturn                 : 'return' {shift};
 
-ReturnValue                : 'return' ret_val=Expression;
+ReturnValue                 : 'return' ret_val=Expression;
 
-ExistsStatement            : 'exists' guarded=DotAccessExpression+[Comma] ':'
-                              statement_block=StatementBlock
-                              else_clause=ElseClause? 'end'
+ExistsStatement             : 'exists' guarded=DotAccessExpression+[Comma] HeaderColon
+                                statement_block=StatementBlock
+                                else_clause=ElseClause?
+                              'end'
                             ;
 
-NotExistsStatement        : 'not' 'exists' guarded=DotAccessExpression+[Comma] ':'
-                              statement_block=StatementBlock
-                              else_clause=ElseClause? 'end'
+NotExistsStatement          : 'not' 'exists' guarded=DotAccessExpression+[Comma] HeaderColon
+                                statement_block=StatementBlock
+                                else_clause=ElseClause?
+                              'end'
                             ;
 
-AssignmentStatement        : VarAssignmentStatement
+FeedthroughStatement        : 'feedthrough' guarded=DotAccessExpression+[Comma] HeaderColon
+                                statement_block=StatementBlock
+                                else_clause=ElseClause?
+                              'end'
+                            ;
+
+NotFeedthroughStatement     : 'not' 'feedthrough' guarded=DotAccessExpression+[Comma] HeaderColon
+                                statement_block=StatementBlock
+                                else_clause=ElseClause?
+                              'end'
+                            ;
+
+AssignmentStatement         : VarAssignmentStatement
                             | TensorAssignmentStatement
                             ;
 
 // shift in the following rules are used to make expression greedy
-VarAssignmentStatement    : var=DotAccessExpression op=AssignmentOperator rvalue=Expression {shift}
+VarAssignmentStatement      : var=DotAccessExpression op=AssignmentOperator rvalue=Expression {shift}
                             ;
 
-TensorAssignmentStatement : tensor=LValueTensor op=AssignmentOperator rvalue=Expression {shift}
+TensorAssignmentStatement   : tensor=LValueTensor op=AssignmentOperator rvalue=Expression {shift}
                             ;
 
-DeclarationStatement       : _type=TypeSpec id=Id '=' rvalue=Expression {shift}
+IoWriteStatement            : VarIoWriteStatement
+                            | TensorIoWriteStatement
+                            ;
+
+VarIoWriteStatement         : io_var=DotAccessExpression '<-' rvalue=Expression
+                            ;
+
+TensorIoWriteStatement      : io_tensor=LValueTensor '<-' rvalue=Expression
+                            ;
+
+DeclarationStatement        : _type=TypeSpec id=DotAccessExpression '=' rvalue=Expression {shift} // Check this id
+                            ;
+
+IoDeclarationStatement      : io_type=IoConstructor id=DotAccessExpression
+                            ;
+
+NoopStatement               : noop='pass'
                             ;
 
 Expression                  : LogicalExpression
                             | TypeCastExpression
+                            | NarrowExpression
                             | MathExpression
+                            | BitwiseExpression
+                            | IoReadExpression
                             ;
 
-AttributeAccess            : expr=Expression Dot attr=Id
+AttributeAccess             : expr=Expression attr=Attribute {left, 14}
                             ;
 
-AssignmentOperator         : '=' | '*=' | '/=' | '%=' | '+=' | '-='
+Attribute                   : LenKw {left, 14}
+                            | SizeKw {left, 14}
+                            | NumelKw {left, 14}
+                            | RowsKw {left, 14}
+                            | ColsKw {left, 14}
                             ;
 
-LogicalExpression          : BinaryRelationalExpression
+IoReadExpression            : VarIoReadExpression
+                            | TensorIoReadExpression
+                            ;
+
+VarIoReadExpression         : '<-' io_var=DotAccessExpression {shift}
+                            ;
+
+TensorIoReadExpression      : '<-' io_tensor=LValueTensor
+                            ;
+
+AssignmentOperator          : '=' | '*=' | '/=' | '%=' | '+=' | '-=' | '&=' | '^=' | '|=' | '<<=' | '>>='
+                            ;
+
+LogicalExpression           : BinaryRelationalExpression
+                            | BinaryLogicalExpression
                             | UnaryLogicalExpression
-                            | UnaryRelationalExpression
                             ;
 
-UnaryLogicalExpression   : left_expr=Expression op='or'  right_expr=Expression {left, 1}
+BinaryLogicalExpression     : left_expr=Expression op='or'  right_expr=Expression {left, 1}
                             | left_expr=Expression op='and' right_expr=Expression  {left, 2}
                             ;
 
-UnaryRelationalExpression    : op='not'  expr=Expression                                     {right, 3}
+UnaryLogicalExpression      : op='not'  expr=Expression                                     {right, 3}
                             ;
 
-BinaryRelationalExpression     : left_expr=Expression op='==' right_expr=Expression     {left, 4}
-                                 | left_expr=Expression op='!=' right_expr=Expression     {left, 4}
-                                 | left_expr=Expression op='>'  right_expr=Expression     {left, 4}
-                                 | left_expr=Expression op='<'  right_expr=Expression     {left, 4}
-                                 | left_expr=Expression op='>=' right_expr=Expression     {left, 4}
-                                 | left_expr=Expression op='<=' right_expr=Expression     {left, 4}
-                                 ;
+BinaryRelationalExpression      : left_expr=Expression op='==' right_expr=Expression     {left, 7}
+                                | left_expr=Expression op='!=' right_expr=Expression     {left, 7}
+                                | left_expr=Expression op='>'  right_expr=Expression     {left, 7}
+                                | left_expr=Expression op='<'  right_expr=Expression     {left, 7}
+                                | left_expr=Expression op='>=' right_expr=Expression     {left, 7}
+                                | left_expr=Expression op='<=' right_expr=Expression     {left, 7}
+                                ;
 
-MathExpression            : PostfixExpression
-                           | BinaryMathExpression
-                           | UnaryMathExpression
-                           | ElvisExpression
-                           ;
+MathExpression              : PostfixExpression
+                            | BinaryMathExpression
+                            | UnaryMathExpression
+                            | ElvisExpression
+                            ;
 
-ElvisExpression           : left_expr=Expression '?:'  right_expr=Expression {left, 5}
-                           ;
+ElvisExpression             : left_expr=Expression '?:'  right_expr=Expression {left, 8}
+                            ;
 
-BinaryMathExpression     : left_expr=Expression op='+'  right_expr=Expression {left, 5}
-                           | left_expr=Expression op='-'  right_expr=Expression {left, 5}
-                           | left_expr=Expression op='%'  right_expr=Expression {left, 6}
-                           | left_expr=Expression op='*'  right_expr=Expression {left, 6}
-                           | left_expr=Expression op='/'  right_expr=Expression {left, 6}
-                           | left_expr=Expression op='\\' right_expr=Expression {left, 6} //should this be removed?
-                           | left_expr=Expression op='**' right_expr=Expression {left, 8}
-                           ;
+BinaryMathExpression        : left_expr=Expression op='+'  right_expr=Expression {left, 10}
+                            | left_expr=Expression op='-'  right_expr=Expression {left, 10}
+                            | left_expr=Expression op='%'  right_expr=Expression {left, 11}
+                            | left_expr=Expression op='*'  right_expr=Expression {left, 11}
+                            | left_expr=Expression op=DotProductOp  right_expr=Expression {left, 11}
+                            | left_expr=Expression op='/'  right_expr=Expression {left, 11}
+                            | left_expr=Expression op='\\' right_expr=Expression {left, 11} //should this be removed?
+                            | left_expr=Expression op='**' right_expr=Expression {left, 13}
+                            ;
 
-UnaryMathExpression      : op='-' expr=Expression                             {right, 7}
-                           | op='+' expr=Expression                             {right, 7}
-                           ;
+UnaryMathExpression         : op='-' expr=Expression                             {right, 12}
+                            | op='+' expr=Expression                             {right, 12}
+                            ;
 
+BitwiseExpression           : BinaryBitwiseExpression
+                            | UnaryBitwiseExpression
+                            ;
 
-PostfixExpression         : RValue
-                           | Constant
-                           | ExprInParenthesis
-                           | TransposeExpression
-                           | TensorLiteral
-                           | TensorExpression
-                           | FunctionCall
-                           | AttributeAccess
-                           | RangeExpression
-                           ;
+// TODO: Set priority
+BinaryBitwiseExpression     : left_expr=Expression op='^'  right_expr=Expression  {left, 5}
+                            | left_expr=Expression op='&'  right_expr=Expression  {left, 6}
+                            | left_expr=Expression op=Pipe right_expr=Expression  {left, 4}
+                            | left_expr=Expression op='<<' right_expr=Expression  {left, 9}
+                            | left_expr=Expression op='>>' right_expr=Expression  {left, 9}
+                            ;
+
+UnaryBitwiseExpression      : op='~' expr=Expression       {right, 12}
+                            ;
+
+PostfixExpression           : RValue
+                            | Constant
+                            | ExprInParenthesis
+                            | TransposeExpression
+                            | TensorLiteral
+                            | TensorExpression
+                            | FunctionCall
+                            | InputExpression
+                            | AttributeAccess
+                            ;
 
 // RValue is a wrapper used for simplifying handling of undeclared variable errors
 RValue                     : _ref=DotAccessExpression
                            ;
 
-RangeExpression           : RangeWithoutStepExpression
-                           | RangeWithStepExpression
+RangeExpression            : RangeFromTo
+                           | RangeFrom
+                           | RangeTo
+                           | RangeFromStepTo
+                           | RangeAll
                            ;
 
-RangeOperand              : RValue
-                           | Constant
-                           | ExprInParenthesis
-                           | FunctionCall
-                           ;
+RangeFromTo                 : start=Expression ':' stop=Expression
+                            ;
 
-RangeWithoutStepExpression : start=RangeOperand Dots stop=RangeOperand        {shift}
-                              ;
+RangeFrom                   : start=Expression ':' {shift}
+                            ;
 
-RangeWithStepExpression    : start=RangeOperand Dots stop=RangeOperand Dots step=RangeOperand
-                              ;
+RangeTo                     : ':' stop=Expression
+                            ;
 
-ExprInParenthesis        : '(' expr=Expression ')'
-                           ;
+RangeFromStepTo             : start=Expression ':' stop=Expression ':' step=Expression
+                            ;
 
-TensorLiteral             : '[' expr=Cube ']'
-                           ;
+RangeAll                    : range_all=':' {shift}
+                            ;
 
-TransposeExpression       : PostfixExpression '\''  // transpose operator <'>
-                           ;
+ExprInParenthesis           : '(' expr=Expression ')'    {left, 14}
+                            ;
 
-FunctionCall              : id=Id '(' arguments_list=Argument*[Comma] ')'
-                           ;
+TensorLiteral               : '[' expr=Cube ']'
+                            ;
 
-IndexExpressionList      : index_expression_list=IndexExpression+[Comma]
-                           ;
+TransposeExpression         : expr=PostfixExpression '\''   {left, 13}  // transpose operator <'>
+                            ;
 
-IndexExpression           : IndexCopyExpr
-                           | IndexFromPosition
-                           | IndexBounds
-                           | IndexBoundsStep
-                           | IndexUpperBound
-                           | IndexLowerBound
-                           ;
+FunctionCall                : id=Id alternative='!'? '(' arguments_list=Argument*[Comma] ')'
+                            ;
 
-IndexCopyExpr            : expr=':'
-                           ;
+InputExpression             : 'input' '(' _type=TypeSpec ')'
+                            ;
 
-IndexFromPosition        : expr=Expression
-                           ;
+IndexExpressionList         : index_expression_list=IndexExpression+[Comma]
+                            ;
 
-IndexBounds               : lower_bound=Expression ':' upper_bound=Expression
-                           ;
+IndexExpression             : expr=Expression
+                            | expr=RangeExpression
+                            ;
 
-IndexBoundsStep          : lower_bound=Expression ':' upper_bound=Expression ':' step=Expression
-                           ;
+ArgumentsList               : arguments_list=Argument+[Comma]
+                            ;
 
-IndexUpperBound          : ':' upper_bound=Expression
-                           ;
+Argument                    : id=Id '=' value=Expression
+                            | value=Expression
+                            ;
 
-IndexLowerBound          : lower_bound=Expression ':'
-                           ;
+LValueTensor                : expr=DotAccessExpression
+                              indices=Index+  {shift}
+                            ;
 
-ArgumentsList             : arguments_list=Argument+[Comma]
-                           ;
+TensorExpression            : expr=Expression '[' index=IndexExpressionList ']' {left, 14}
+                            ;
 
-Argument                   : id=Id '=' value=Expression
-                           | value=Expression
-                           ;
+Index                       : '[' index=IndexExpressionList ']'
+                            ;
 
-LValueTensor              : expr=DotAccessExpression
-                             indices=Index+
-                           ;
-Index                      : '[' index=IndexExpressionList ']'
-                           ;
+DotAccessExpression         : names=Id+[Dot] // TODO: see how to make it
+                              macro_index=MacroIndex?
+                              optional='?'?
+                            ;
 
-TensorExpression          : expr=Expression '[' index=IndexExpressionList ']'
-                           ;
-
-DotAccessExpression      : names=Id+[Dot]
-                             optional='?'?
-                           ;
+MacroIndex                  : '{' index=Expression+[Comma] '}'
+                            ;
 
 Array                      : elements=Expression+[Comma]
                            ;
@@ -301,23 +413,20 @@ Integer                     : value=IntegerConst
                             | value=BinaryConst
                             ;
 
-UnsignedInteger            : value=UnsignedIntegerConst
+UnsignedInteger             : value=UnsignedIntegerConst
                             | value=UnsignedHexadecimalConst
                             | value=UnsignedBinaryConst
                             ;
 
-TmlFloat                       : value=FloatConst
+TmlFloat                    : value=FloatConst
                             ;
 
-TmlString                      : value=StringConst
+TmlString                   : value=StringConst
                             ;
 
 // Needed for comments in our language
 LAYOUT: LayoutItem | LAYOUT LayoutItem | EMPTY;
 LayoutItem: WS | Comment;
-
-
-
 
 
 // ===================================== Terminals
@@ -336,6 +445,7 @@ UintT: 'uint';
 RealT: 'real';
 BoolT: 'bool';
 StrT: 'str';
+CharT: 'char';
 TensorT: 'tensor';
 Lt: '<';
 Gt: '>';
@@ -351,12 +461,34 @@ BreakT: 'break';
 ContinueT: 'continue';
 ReturnT: 'return';
 ExistsT: 'exists';
+Macro: 'macro';
+Narrow: 'narrow';
+In: 'in';
+Out: 'out';
+Dma: 'dma';
+Hil: 'hil';
+Ao: 'ao';
+Abs: 'abs';
+Shared: 'shared';
+Ext: 'ext';
+Sink: 'sink';
+Feedthrough: 'feedthrough';
+Pass: 'pass';
+Input: 'input';
 NotT: 'not';
 MulAssignT: '*=';
 DivAssignT: '/=';
 AddAssignT: '+=';
 SubAssignT: '-=';
 ModAssignT: '%=';
+AndAssignT: '&=';
+KapAssignT: '^=';
+PipeAssignT: '|=';
+LeftShiftAssignT: '<<=';
+RightShiftAssignT: '>>=';
+ArrowAssignT: '<-';
+Tilda: '~';
+Alternative: '!';
 OrT: 'or';
 AndT: 'and';
 NotEqT: '!=';
@@ -371,8 +503,14 @@ RDivT: '\\';
 PowT: '**';
 OSquare: '[';
 CSquare: ']';
+OCurly: '{';
+CCurly: '}';
 Transpose: '\'';
 
+BitwiseCaretT: '^';
+BitwiseAndT: '&';
+BitwiseShiftLeftT: '<<';
+BitwiseShiftRightT: '>>';
 
 UnsignedSuffix: /[uU]/ ;
 
@@ -395,9 +533,16 @@ Ellipsis: '...';
 Dot: '.';
 Dots: '..';
 Comma: ',';
+HeaderColon: /:[ \t]*(\#[^\#]*)?\n/ {15};
 Semicolon: ';';
 Pipe: '|';
-TypeKw: '.type';
+TypeKw: /\.type\b/ {17};
+LenKw: /\.len\b/ {17};
+SizeKw: /\.size\b/ {17};
+NumelKw: /\.numel\b/ {17};
+RowsKw: /\.rows\b/ {17};
+ColsKw: /\.cols\b/ {17};
+DotProductOp: '.*';
 
 StringConst: /("([^"\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*")|('([^'\\\n]|(\\(([a-zA-Z._~!=&\^\-\\?'"])|(\d+)|(x[0-9a-fA-F]+))))*')/;
 Id: /[_a-zA-Z][_a-zA-Z0-9]*/;

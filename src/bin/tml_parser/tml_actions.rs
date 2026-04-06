@@ -34,8 +34,40 @@ pub type FloatConst = String;
 pub fn float_const(_ctx: &Ctx, token: Token) -> FloatConst {
     token.value.into()
 }
-pub type BooleanConst = String;
-pub fn boolean_const(_ctx: &Ctx, token: Token) -> BooleanConst {
+pub type TrueConst = String;
+pub fn true_const(_ctx: &Ctx, token: Token) -> TrueConst {
+    token.value.into()
+}
+pub type FalseConst = String;
+pub fn false_const(_ctx: &Ctx, token: Token) -> FalseConst {
+    token.value.into()
+}
+pub type HeaderColon = String;
+pub fn header_colon(_ctx: &Ctx, token: Token) -> HeaderColon {
+    token.value.into()
+}
+pub type TypeKw = String;
+pub fn type_kw(_ctx: &Ctx, token: Token) -> TypeKw {
+    token.value.into()
+}
+pub type LenKw = String;
+pub fn len_kw(_ctx: &Ctx, token: Token) -> LenKw {
+    token.value.into()
+}
+pub type SizeKw = String;
+pub fn size_kw(_ctx: &Ctx, token: Token) -> SizeKw {
+    token.value.into()
+}
+pub type NumelKw = String;
+pub fn numel_kw(_ctx: &Ctx, token: Token) -> NumelKw {
+    token.value.into()
+}
+pub type RowsKw = String;
+pub fn rows_kw(_ctx: &Ctx, token: Token) -> RowsKw {
+    token.value.into()
+}
+pub type ColsKw = String;
+pub fn cols_kw(_ctx: &Ctx, token: Token) -> ColsKw {
     token.value.into()
 }
 pub type StringConst = String;
@@ -76,6 +108,10 @@ pub enum ExternalDeclaration {
     FunctionDefinition(FunctionDefinition),
     DeclarationStatement(DeclarationStatement),
     AssignmentStatement(AssignmentStatement),
+    IoDeclarationStatement(IoDeclarationStatement),
+    IoWriteStatement(IoWriteStatement),
+    MacroFor(MacroFor),
+    MacroIf(MacroIf),
 }
 pub fn external_declaration_function_definition(
     _ctx: &Ctx,
@@ -95,11 +131,50 @@ pub fn external_declaration_assignment_statement(
 ) -> ExternalDeclaration {
     ExternalDeclaration::AssignmentStatement(assignment_statement)
 }
+pub fn external_declaration_io_declaration_statement(
+    _ctx: &Ctx,
+    io_declaration_statement: IoDeclarationStatement,
+) -> ExternalDeclaration {
+    ExternalDeclaration::IoDeclarationStatement(io_declaration_statement)
+}
+pub fn external_declaration_io_write_statement(
+    _ctx: &Ctx,
+    io_write_statement: IoWriteStatement,
+) -> ExternalDeclaration {
+    ExternalDeclaration::IoWriteStatement(io_write_statement)
+}
+pub fn external_declaration_macro_for(
+    _ctx: &Ctx,
+    macro_for: MacroFor,
+) -> ExternalDeclaration {
+    ExternalDeclaration::MacroFor(macro_for)
+}
+pub fn external_declaration_macro_if(
+    _ctx: &Ctx,
+    macro_if: MacroIf,
+) -> ExternalDeclaration {
+    ExternalDeclaration::MacroIf(macro_if)
+}
+#[derive(Debug, Clone)]
+pub struct MacroFor {
+    pub body: ForIterationStatement,
+}
+pub fn macro_for_c1(_ctx: &Ctx, body: ForIterationStatement) -> MacroFor {
+    MacroFor { body }
+}
+#[derive(Debug, Clone)]
+pub struct MacroIf {
+    pub body: SelectionStatement,
+}
+pub fn macro_if_c1(_ctx: &Ctx, body: SelectionStatement) -> MacroIf {
+    MacroIf { body }
+}
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     pub id: Id,
     pub parameters_list: Parameter0,
     pub ret_type: TypeSpecOpt,
+    pub header_colon: HeaderColon,
     pub statement_block: StatementBlock,
 }
 pub fn function_definition_c1(
@@ -107,12 +182,14 @@ pub fn function_definition_c1(
     id: Id,
     parameters_list: Parameter0,
     ret_type: TypeSpecOpt,
+    header_colon: HeaderColon,
     statement_block: StatementBlock,
 ) -> FunctionDefinition {
     FunctionDefinition {
         id,
         parameters_list,
         ret_type,
+        header_colon,
         statement_block,
     }
 }
@@ -189,6 +266,15 @@ pub fn type_cast_expression_c1(
     }
 }
 #[derive(Debug, Clone)]
+pub struct NarrowExpression {
+    pub expr: Box<Expression>,
+}
+pub fn narrow_expression_c1(_ctx: &Ctx, expr: Expression) -> NarrowExpression {
+    NarrowExpression {
+        expr: Box::new(expr),
+    }
+}
+#[derive(Debug, Clone)]
 pub enum TypeSpec {
     SimpleType(SimpleType),
     DerivedType(DerivedType),
@@ -217,13 +303,19 @@ pub fn simple_type_c1(_ctx: &Ctx, _type: SimpleTypeSpec) -> SimpleType {
 pub struct DerivedType {
     pub name: DotAccessExpression,
     pub brackets: SquareBrackets0,
+    pub type_kw: TypeKw,
 }
 pub fn derived_type_c1(
     _ctx: &Ctx,
     name: DotAccessExpression,
     brackets: SquareBrackets0,
+    type_kw: TypeKw,
 ) -> DerivedType {
-    DerivedType { name, brackets }
+    DerivedType {
+        name,
+        brackets,
+        type_kw,
+    }
 }
 #[derive(Debug, Clone)]
 pub enum SquareBrackets1 {
@@ -256,6 +348,7 @@ pub enum SimpleTypeSpec {
     RealT,
     BoolT,
     StrT,
+    CharT,
 }
 pub fn simple_type_spec_int_t(_ctx: &Ctx) -> SimpleTypeSpec {
     SimpleTypeSpec::IntT
@@ -271,6 +364,20 @@ pub fn simple_type_spec_bool_t(_ctx: &Ctx) -> SimpleTypeSpec {
 }
 pub fn simple_type_spec_str_t(_ctx: &Ctx) -> SimpleTypeSpec {
     SimpleTypeSpec::StrT
+}
+pub fn simple_type_spec_char_t(_ctx: &Ctx) -> SimpleTypeSpec {
+    SimpleTypeSpec::CharT
+}
+#[derive(Debug, Clone)]
+pub enum IoDirection {
+    In,
+    Out,
+}
+pub fn io_direction_in(_ctx: &Ctx) -> IoDirection {
+    IoDirection::In
+}
+pub fn io_direction_out(_ctx: &Ctx) -> IoDirection {
+    IoDirection::Out
 }
 #[derive(Debug, Clone)]
 pub struct TensorConstructor {
@@ -300,6 +407,95 @@ pub fn expression1_expression(_ctx: &Ctx, expression: Expression) -> Expression1
     vec![expression]
 }
 #[derive(Debug, Clone)]
+pub struct IoConstructor {
+    pub direction: IoDirection,
+    pub _type: TypeSpec,
+    pub address: Expression,
+    pub io_flags: IoFlagsSpecOpt,
+}
+pub fn io_constructor_c1(
+    _ctx: &Ctx,
+    direction: IoDirection,
+    _type: TypeSpec,
+    address: Expression,
+    io_flags: IoFlagsSpecOpt,
+) -> IoConstructor {
+    IoConstructor {
+        direction,
+        _type,
+        address,
+        io_flags,
+    }
+}
+pub type IoFlagsSpecOpt = Option<IoFlagsSpec>;
+pub fn io_flags_spec_opt_io_flags_spec(
+    _ctx: &Ctx,
+    io_flags_spec: IoFlagsSpec,
+) -> IoFlagsSpecOpt {
+    Some(io_flags_spec)
+}
+pub fn io_flags_spec_opt_empty(_ctx: &Ctx) -> IoFlagsSpecOpt {
+    None
+}
+#[derive(Debug, Clone)]
+pub struct IoFlagsSpecC2 {
+    pub io_range: IoRangeSpec,
+}
+#[derive(Debug, Clone)]
+pub struct IoFlagsSpecC3 {
+    pub io_range: IoRangeSpec,
+}
+#[derive(Debug, Clone)]
+pub struct IoFlagsSpecC4 {
+    pub io_range: IoRangeSpec,
+}
+#[derive(Debug, Clone)]
+pub enum IoFlagsSpec {
+    C1,
+    C2(IoFlagsSpecC2),
+    C3(IoFlagsSpecC3),
+    C4(IoFlagsSpecC4),
+}
+pub fn io_flags_spec_c1(_ctx: &Ctx) -> IoFlagsSpec {
+    IoFlagsSpec::C1
+}
+pub fn io_flags_spec_c2(_ctx: &Ctx, io_range: IoRangeSpec) -> IoFlagsSpec {
+    IoFlagsSpec::C2(IoFlagsSpecC2 { io_range })
+}
+pub fn io_flags_spec_c3(_ctx: &Ctx, io_range: IoRangeSpec) -> IoFlagsSpec {
+    IoFlagsSpec::C3(IoFlagsSpecC3 { io_range })
+}
+pub fn io_flags_spec_c4(_ctx: &Ctx, io_range: IoRangeSpec) -> IoFlagsSpec {
+    IoFlagsSpec::C4(IoFlagsSpecC4 { io_range })
+}
+#[derive(Debug, Clone)]
+pub enum IoRangeSpec {
+    Hil,
+    Ao,
+    Abs,
+    Shared,
+    Ext,
+    Sink,
+}
+pub fn io_range_spec_hil(_ctx: &Ctx) -> IoRangeSpec {
+    IoRangeSpec::Hil
+}
+pub fn io_range_spec_ao(_ctx: &Ctx) -> IoRangeSpec {
+    IoRangeSpec::Ao
+}
+pub fn io_range_spec_abs(_ctx: &Ctx) -> IoRangeSpec {
+    IoRangeSpec::Abs
+}
+pub fn io_range_spec_shared(_ctx: &Ctx) -> IoRangeSpec {
+    IoRangeSpec::Shared
+}
+pub fn io_range_spec_ext(_ctx: &Ctx) -> IoRangeSpec {
+    IoRangeSpec::Ext
+}
+pub fn io_range_spec_sink(_ctx: &Ctx) -> IoRangeSpec {
+    IoRangeSpec::Sink
+}
+#[derive(Debug, Clone)]
 pub struct StatementBlock {
     pub statements: Statement1,
 }
@@ -320,17 +516,27 @@ pub fn statement1_statement(_ctx: &Ctx, statement: Statement) -> Statement1 {
 }
 #[derive(Debug, Clone)]
 pub enum Statement {
-    FunctionCall(FunctionCall),
+    FunctionCallStatement(FunctionCallStatement),
     SelectionStatement(SelectionStatement),
     IterationStatement(IterationStatement),
     JumpStatement(JumpStatement),
     ExistsStatement(ExistsStatement),
     NotExistsStatement(NotExistsStatement),
+    FeedthroughStatement(FeedthroughStatement),
+    NotFeedthroughStatement(NotFeedthroughStatement),
     AssignmentStatement(AssignmentStatement),
     DeclarationStatement(DeclarationStatement),
+    IoDeclarationStatement(IoDeclarationStatement),
+    IoWriteStatement(IoWriteStatement),
+    NoopStatement(NoopStatement),
+    MacroFor(MacroFor),
+    MacroIf(MacroIf),
 }
-pub fn statement_function_call(_ctx: &Ctx, function_call: FunctionCall) -> Statement {
-    Statement::FunctionCall(function_call)
+pub fn statement_function_call_statement(
+    _ctx: &Ctx,
+    function_call_statement: FunctionCallStatement,
+) -> Statement {
+    Statement::FunctionCallStatement(function_call_statement)
 }
 pub fn statement_selection_statement(
     _ctx: &Ctx,
@@ -359,6 +565,18 @@ pub fn statement_not_exists_statement(
 ) -> Statement {
     Statement::NotExistsStatement(not_exists_statement)
 }
+pub fn statement_feedthrough_statement(
+    _ctx: &Ctx,
+    feedthrough_statement: FeedthroughStatement,
+) -> Statement {
+    Statement::FeedthroughStatement(feedthrough_statement)
+}
+pub fn statement_not_feedthrough_statement(
+    _ctx: &Ctx,
+    not_feedthrough_statement: NotFeedthroughStatement,
+) -> Statement {
+    Statement::NotFeedthroughStatement(not_feedthrough_statement)
+}
 pub fn statement_assignment_statement(
     _ctx: &Ctx,
     assignment_statement: AssignmentStatement,
@@ -371,9 +589,41 @@ pub fn statement_declaration_statement(
 ) -> Statement {
     Statement::DeclarationStatement(declaration_statement)
 }
+pub fn statement_io_declaration_statement(
+    _ctx: &Ctx,
+    io_declaration_statement: IoDeclarationStatement,
+) -> Statement {
+    Statement::IoDeclarationStatement(io_declaration_statement)
+}
+pub fn statement_io_write_statement(
+    _ctx: &Ctx,
+    io_write_statement: IoWriteStatement,
+) -> Statement {
+    Statement::IoWriteStatement(io_write_statement)
+}
+pub fn statement_noop_statement(_ctx: &Ctx, noop_statement: NoopStatement) -> Statement {
+    Statement::NoopStatement(noop_statement)
+}
+pub fn statement_macro_for(_ctx: &Ctx, macro_for: MacroFor) -> Statement {
+    Statement::MacroFor(macro_for)
+}
+pub fn statement_macro_if(_ctx: &Ctx, macro_if: MacroIf) -> Statement {
+    Statement::MacroIf(macro_if)
+}
+#[derive(Debug, Clone)]
+pub struct FunctionCallStatement {
+    pub call: FunctionCall,
+}
+pub fn function_call_statement_c1(
+    _ctx: &Ctx,
+    call: FunctionCall,
+) -> FunctionCallStatement {
+    FunctionCallStatement { call }
+}
 #[derive(Debug, Clone)]
 pub struct SelectionStatement {
     pub condition: Expression,
+    pub header_colon: HeaderColon,
     pub if_statement_block: Box<StatementBlock>,
     pub elseif_clause: ElseIfClause0,
     pub else_clause: ElseClauseOpt,
@@ -381,12 +631,14 @@ pub struct SelectionStatement {
 pub fn selection_statement_c1(
     _ctx: &Ctx,
     condition: Expression,
+    header_colon: HeaderColon,
     if_statement_block: StatementBlock,
     elseif_clause: ElseIfClause0,
     else_clause: ElseClauseOpt,
 ) -> SelectionStatement {
     SelectionStatement {
         condition,
+        header_colon,
         if_statement_block: Box::new(if_statement_block),
         elseif_clause,
         else_clause,
@@ -429,25 +681,34 @@ pub fn else_clause_opt_empty(_ctx: &Ctx) -> ElseClauseOpt {
 }
 #[derive(Debug, Clone)]
 pub struct ElseClause {
+    pub header_colon: HeaderColon,
     pub else_statement_block: Box<StatementBlock>,
 }
-pub fn else_clause_c1(_ctx: &Ctx, else_statement_block: StatementBlock) -> ElseClause {
+pub fn else_clause_c1(
+    _ctx: &Ctx,
+    header_colon: HeaderColon,
+    else_statement_block: StatementBlock,
+) -> ElseClause {
     ElseClause {
+        header_colon,
         else_statement_block: Box::new(else_statement_block),
     }
 }
 #[derive(Debug, Clone)]
 pub struct ElseIfClause {
     pub condition: Expression,
+    pub header_colon: HeaderColon,
     pub elseif_statement_block: Box<StatementBlock>,
 }
 pub fn else_if_clause_c1(
     _ctx: &Ctx,
     condition: Expression,
+    header_colon: HeaderColon,
     elseif_statement_block: StatementBlock,
 ) -> ElseIfClause {
     ElseIfClause {
         condition,
+        header_colon,
         elseif_statement_block: Box::new(elseif_statement_block),
     }
 }
@@ -470,34 +731,88 @@ pub fn iteration_statement_while_iteration_statement(
 }
 #[derive(Debug, Clone)]
 pub struct ForIterationStatement {
-    pub idx: Id,
-    pub iterator_expression: Expression,
-    pub statement_block: Box<StatementBlock>,
+    pub header: ForIterationHeader,
+    pub header_colon: HeaderColon,
+    pub body: ForIterationBody,
 }
 pub fn for_iteration_statement_c1(
     _ctx: &Ctx,
-    idx: Id,
-    iterator_expression: Expression,
-    statement_block: StatementBlock,
+    header: ForIterationHeader,
+    header_colon: HeaderColon,
+    body: ForIterationBody,
 ) -> ForIterationStatement {
     ForIterationStatement {
+        header,
+        header_colon,
+        body,
+    }
+}
+#[derive(Debug, Clone)]
+pub struct ForIterationHeader {
+    pub idx: Id,
+    pub iterator_expression: IteratorExpression,
+}
+pub fn for_iteration_header_c1(
+    _ctx: &Ctx,
+    idx: Id,
+    iterator_expression: IteratorExpression,
+) -> ForIterationHeader {
+    ForIterationHeader {
         idx,
         iterator_expression,
+    }
+}
+#[derive(Debug, Clone)]
+pub struct ForIterationBody {
+    pub statement_block: Box<StatementBlock>,
+}
+pub fn for_iteration_body_c1(
+    _ctx: &Ctx,
+    statement_block: StatementBlock,
+) -> ForIterationBody {
+    ForIterationBody {
         statement_block: Box::new(statement_block),
     }
 }
 #[derive(Debug, Clone)]
+pub enum IteratorExpression {
+    Expression(Expression),
+    RangeFromStepTo(RangeFromStepTo),
+    RangeFromTo(RangeFromTo),
+}
+pub fn iterator_expression_expression(
+    _ctx: &Ctx,
+    expression: Expression,
+) -> IteratorExpression {
+    IteratorExpression::Expression(expression)
+}
+pub fn iterator_expression_range_from_step_to(
+    _ctx: &Ctx,
+    range_from_step_to: RangeFromStepTo,
+) -> IteratorExpression {
+    IteratorExpression::RangeFromStepTo(range_from_step_to)
+}
+pub fn iterator_expression_range_from_to(
+    _ctx: &Ctx,
+    range_from_to: RangeFromTo,
+) -> IteratorExpression {
+    IteratorExpression::RangeFromTo(range_from_to)
+}
+#[derive(Debug, Clone)]
 pub struct WhileIterationStatement {
     pub condition: Expression,
+    pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
 }
 pub fn while_iteration_statement_c1(
     _ctx: &Ctx,
     condition: Expression,
+    header_colon: HeaderColon,
     statement_block: StatementBlock,
 ) -> WhileIterationStatement {
     WhileIterationStatement {
         condition,
+        header_colon,
         statement_block: Box::new(statement_block),
     }
 }
@@ -573,17 +888,20 @@ pub fn return_value_c1(_ctx: &Ctx, ret_val: Expression) -> ReturnValue {
 #[derive(Debug, Clone)]
 pub struct ExistsStatement {
     pub guarded: DotAccessExpression1,
+    pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
 }
 pub fn exists_statement_c1(
     _ctx: &Ctx,
     guarded: DotAccessExpression1,
+    header_colon: HeaderColon,
     statement_block: StatementBlock,
     else_clause: ElseClauseOpt,
 ) -> ExistsStatement {
     ExistsStatement {
         guarded,
+        header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
     }
@@ -606,17 +924,62 @@ pub fn dot_access_expression1_dot_access_expression(
 #[derive(Debug, Clone)]
 pub struct NotExistsStatement {
     pub guarded: DotAccessExpression1,
+    pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
 }
 pub fn not_exists_statement_c1(
     _ctx: &Ctx,
     guarded: DotAccessExpression1,
+    header_colon: HeaderColon,
     statement_block: StatementBlock,
     else_clause: ElseClauseOpt,
 ) -> NotExistsStatement {
     NotExistsStatement {
         guarded,
+        header_colon,
+        statement_block: Box::new(statement_block),
+        else_clause,
+    }
+}
+#[derive(Debug, Clone)]
+pub struct FeedthroughStatement {
+    pub guarded: DotAccessExpression1,
+    pub header_colon: HeaderColon,
+    pub statement_block: Box<StatementBlock>,
+    pub else_clause: ElseClauseOpt,
+}
+pub fn feedthrough_statement_c1(
+    _ctx: &Ctx,
+    guarded: DotAccessExpression1,
+    header_colon: HeaderColon,
+    statement_block: StatementBlock,
+    else_clause: ElseClauseOpt,
+) -> FeedthroughStatement {
+    FeedthroughStatement {
+        guarded,
+        header_colon,
+        statement_block: Box::new(statement_block),
+        else_clause,
+    }
+}
+#[derive(Debug, Clone)]
+pub struct NotFeedthroughStatement {
+    pub guarded: DotAccessExpression1,
+    pub header_colon: HeaderColon,
+    pub statement_block: Box<StatementBlock>,
+    pub else_clause: ElseClauseOpt,
+}
+pub fn not_feedthrough_statement_c1(
+    _ctx: &Ctx,
+    guarded: DotAccessExpression1,
+    header_colon: HeaderColon,
+    statement_block: StatementBlock,
+    else_clause: ElseClauseOpt,
+) -> NotFeedthroughStatement {
+    NotFeedthroughStatement {
+        guarded,
+        header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
     }
@@ -675,15 +1038,62 @@ pub fn tensor_assignment_statement_c1(
     }
 }
 #[derive(Debug, Clone)]
+pub enum IoWriteStatement {
+    VarIoWriteStatement(VarIoWriteStatement),
+    TensorIoWriteStatement(TensorIoWriteStatement),
+}
+pub fn io_write_statement_var_io_write_statement(
+    _ctx: &Ctx,
+    var_io_write_statement: VarIoWriteStatement,
+) -> IoWriteStatement {
+    IoWriteStatement::VarIoWriteStatement(var_io_write_statement)
+}
+pub fn io_write_statement_tensor_io_write_statement(
+    _ctx: &Ctx,
+    tensor_io_write_statement: TensorIoWriteStatement,
+) -> IoWriteStatement {
+    IoWriteStatement::TensorIoWriteStatement(tensor_io_write_statement)
+}
+#[derive(Debug, Clone)]
+pub struct VarIoWriteStatement {
+    pub io_var: DotAccessExpression,
+    pub rvalue: Expression,
+}
+pub fn var_io_write_statement_c1(
+    _ctx: &Ctx,
+    io_var: DotAccessExpression,
+    rvalue: Expression,
+) -> VarIoWriteStatement {
+    VarIoWriteStatement {
+        io_var,
+        rvalue,
+    }
+}
+#[derive(Debug, Clone)]
+pub struct TensorIoWriteStatement {
+    pub io_tensor: LValueTensor,
+    pub rvalue: Expression,
+}
+pub fn tensor_io_write_statement_c1(
+    _ctx: &Ctx,
+    io_tensor: LValueTensor,
+    rvalue: Expression,
+) -> TensorIoWriteStatement {
+    TensorIoWriteStatement {
+        io_tensor,
+        rvalue,
+    }
+}
+#[derive(Debug, Clone)]
 pub struct DeclarationStatement {
     pub _type: TypeSpec,
-    pub id: Id,
+    pub id: DotAccessExpression,
     pub rvalue: Expression,
 }
 pub fn declaration_statement_c1(
     _ctx: &Ctx,
     _type: TypeSpec,
-    id: Id,
+    id: DotAccessExpression,
     rvalue: Expression,
 ) -> DeclarationStatement {
     DeclarationStatement {
@@ -693,10 +1103,35 @@ pub fn declaration_statement_c1(
     }
 }
 #[derive(Debug, Clone)]
+pub struct IoDeclarationStatement {
+    pub io_type: IoConstructor,
+    pub id: DotAccessExpression,
+}
+pub fn io_declaration_statement_c1(
+    _ctx: &Ctx,
+    io_type: IoConstructor,
+    id: DotAccessExpression,
+) -> IoDeclarationStatement {
+    IoDeclarationStatement {
+        io_type,
+        id,
+    }
+}
+#[derive(Debug, Clone)]
+pub enum NoopStatement {
+    Pass,
+}
+pub fn noop_statement_pass(_ctx: &Ctx) -> NoopStatement {
+    NoopStatement::Pass
+}
+#[derive(Debug, Clone)]
 pub enum Expression {
     LogicalExpression(LogicalExpression),
     TypeCastExpression(TypeCastExpression),
+    NarrowExpression(NarrowExpression),
     MathExpression(MathExpression),
+    BitwiseExpression(BitwiseExpression),
+    IoReadExpression(IoReadExpression),
 }
 pub fn expression_logical_expression(
     _ctx: &Ctx,
@@ -710,21 +1145,107 @@ pub fn expression_type_cast_expression(
 ) -> Expression {
     Expression::TypeCastExpression(type_cast_expression)
 }
+pub fn expression_narrow_expression(
+    _ctx: &Ctx,
+    narrow_expression: NarrowExpression,
+) -> Expression {
+    Expression::NarrowExpression(narrow_expression)
+}
 pub fn expression_math_expression(
     _ctx: &Ctx,
     math_expression: MathExpression,
 ) -> Expression {
     Expression::MathExpression(math_expression)
 }
+pub fn expression_bitwise_expression(
+    _ctx: &Ctx,
+    bitwise_expression: BitwiseExpression,
+) -> Expression {
+    Expression::BitwiseExpression(bitwise_expression)
+}
+pub fn expression_io_read_expression(
+    _ctx: &Ctx,
+    io_read_expression: IoReadExpression,
+) -> Expression {
+    Expression::IoReadExpression(io_read_expression)
+}
 #[derive(Debug, Clone)]
 pub struct AttributeAccess {
     pub expr: Box<Expression>,
-    pub attr: Id,
+    pub attr: Attribute,
 }
-pub fn attribute_access_c1(_ctx: &Ctx, expr: Expression, attr: Id) -> AttributeAccess {
+pub fn attribute_access_c1(
+    _ctx: &Ctx,
+    expr: Expression,
+    attr: Attribute,
+) -> AttributeAccess {
     AttributeAccess {
         expr: Box::new(expr),
         attr,
+    }
+}
+#[derive(Debug, Clone)]
+pub enum Attribute {
+    LenKw(LenKw),
+    SizeKw(SizeKw),
+    NumelKw(NumelKw),
+    RowsKw(RowsKw),
+    ColsKw(ColsKw),
+}
+pub fn attribute_len_kw(_ctx: &Ctx, len_kw: LenKw) -> Attribute {
+    Attribute::LenKw(len_kw)
+}
+pub fn attribute_size_kw(_ctx: &Ctx, size_kw: SizeKw) -> Attribute {
+    Attribute::SizeKw(size_kw)
+}
+pub fn attribute_numel_kw(_ctx: &Ctx, numel_kw: NumelKw) -> Attribute {
+    Attribute::NumelKw(numel_kw)
+}
+pub fn attribute_rows_kw(_ctx: &Ctx, rows_kw: RowsKw) -> Attribute {
+    Attribute::RowsKw(rows_kw)
+}
+pub fn attribute_cols_kw(_ctx: &Ctx, cols_kw: ColsKw) -> Attribute {
+    Attribute::ColsKw(cols_kw)
+}
+#[derive(Debug, Clone)]
+pub enum IoReadExpression {
+    VarIoReadExpression(VarIoReadExpression),
+    TensorIoReadExpression(TensorIoReadExpression),
+}
+pub fn io_read_expression_var_io_read_expression(
+    _ctx: &Ctx,
+    var_io_read_expression: VarIoReadExpression,
+) -> IoReadExpression {
+    IoReadExpression::VarIoReadExpression(var_io_read_expression)
+}
+pub fn io_read_expression_tensor_io_read_expression(
+    _ctx: &Ctx,
+    tensor_io_read_expression: TensorIoReadExpression,
+) -> IoReadExpression {
+    IoReadExpression::TensorIoReadExpression(tensor_io_read_expression)
+}
+#[derive(Debug, Clone)]
+pub struct VarIoReadExpression {
+    pub io_var: Box<DotAccessExpression>,
+}
+pub fn var_io_read_expression_c1(
+    _ctx: &Ctx,
+    io_var: DotAccessExpression,
+) -> VarIoReadExpression {
+    VarIoReadExpression {
+        io_var: Box::new(io_var),
+    }
+}
+#[derive(Debug, Clone)]
+pub struct TensorIoReadExpression {
+    pub io_tensor: LValueTensor,
+}
+pub fn tensor_io_read_expression_c1(
+    _ctx: &Ctx,
+    io_tensor: LValueTensor,
+) -> TensorIoReadExpression {
+    TensorIoReadExpression {
+        io_tensor,
     }
 }
 #[derive(Debug, Clone)]
@@ -735,6 +1256,11 @@ pub enum AssignmentOperator {
     ModAssignT,
     AddAssignT,
     SubAssignT,
+    AndAssignT,
+    KapAssignT,
+    PipeAssignT,
+    LeftShiftAssignT,
+    RightShiftAssignT,
 }
 pub fn assignment_operator_assign(_ctx: &Ctx) -> AssignmentOperator {
     AssignmentOperator::Assign
@@ -754,11 +1280,26 @@ pub fn assignment_operator_add_assign_t(_ctx: &Ctx) -> AssignmentOperator {
 pub fn assignment_operator_sub_assign_t(_ctx: &Ctx) -> AssignmentOperator {
     AssignmentOperator::SubAssignT
 }
+pub fn assignment_operator_and_assign_t(_ctx: &Ctx) -> AssignmentOperator {
+    AssignmentOperator::AndAssignT
+}
+pub fn assignment_operator_kap_assign_t(_ctx: &Ctx) -> AssignmentOperator {
+    AssignmentOperator::KapAssignT
+}
+pub fn assignment_operator_pipe_assign_t(_ctx: &Ctx) -> AssignmentOperator {
+    AssignmentOperator::PipeAssignT
+}
+pub fn assignment_operator_left_shift_assign_t(_ctx: &Ctx) -> AssignmentOperator {
+    AssignmentOperator::LeftShiftAssignT
+}
+pub fn assignment_operator_right_shift_assign_t(_ctx: &Ctx) -> AssignmentOperator {
+    AssignmentOperator::RightShiftAssignT
+}
 #[derive(Debug, Clone)]
 pub enum LogicalExpression {
     BinaryRelationalExpression(BinaryRelationalExpression),
+    BinaryLogicalExpression(BinaryLogicalExpression),
     UnaryLogicalExpression(UnaryLogicalExpression),
-    UnaryRelationalExpression(UnaryRelationalExpression),
 }
 pub fn logical_expression_binary_relational_expression(
     _ctx: &Ctx,
@@ -766,62 +1307,62 @@ pub fn logical_expression_binary_relational_expression(
 ) -> LogicalExpression {
     LogicalExpression::BinaryRelationalExpression(binary_relational_expression)
 }
+pub fn logical_expression_binary_logical_expression(
+    _ctx: &Ctx,
+    binary_logical_expression: BinaryLogicalExpression,
+) -> LogicalExpression {
+    LogicalExpression::BinaryLogicalExpression(binary_logical_expression)
+}
 pub fn logical_expression_unary_logical_expression(
     _ctx: &Ctx,
     unary_logical_expression: UnaryLogicalExpression,
 ) -> LogicalExpression {
     LogicalExpression::UnaryLogicalExpression(unary_logical_expression)
 }
-pub fn logical_expression_unary_relational_expression(
+#[derive(Debug, Clone)]
+pub struct BinaryLogicalExpressionC1 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub struct BinaryLogicalExpressionC2 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub enum BinaryLogicalExpression {
+    C1(BinaryLogicalExpressionC1),
+    C2(BinaryLogicalExpressionC2),
+}
+pub fn binary_logical_expression_c1(
     _ctx: &Ctx,
-    unary_relational_expression: UnaryRelationalExpression,
-) -> LogicalExpression {
-    LogicalExpression::UnaryRelationalExpression(unary_relational_expression)
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryLogicalExpression {
+    BinaryLogicalExpression::C1(BinaryLogicalExpressionC1 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
+pub fn binary_logical_expression_c2(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryLogicalExpression {
+    BinaryLogicalExpression::C2(BinaryLogicalExpressionC2 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
 }
 #[derive(Debug, Clone)]
-pub struct UnaryLogicalExpressionC1 {
-    pub left_expr: Box<Expression>,
-    pub right_expr: Box<Expression>,
-}
-#[derive(Debug, Clone)]
-pub struct UnaryLogicalExpressionC2 {
-    pub left_expr: Box<Expression>,
-    pub right_expr: Box<Expression>,
-}
-#[derive(Debug, Clone)]
-pub enum UnaryLogicalExpression {
-    C1(UnaryLogicalExpressionC1),
-    C2(UnaryLogicalExpressionC2),
+pub struct UnaryLogicalExpression {
+    pub expr: Box<Expression>,
 }
 pub fn unary_logical_expression_c1(
     _ctx: &Ctx,
-    left_expr: Expression,
-    right_expr: Expression,
-) -> UnaryLogicalExpression {
-    UnaryLogicalExpression::C1(UnaryLogicalExpressionC1 {
-        left_expr: Box::new(left_expr),
-        right_expr: Box::new(right_expr),
-    })
-}
-pub fn unary_logical_expression_c2(
-    _ctx: &Ctx,
-    left_expr: Expression,
-    right_expr: Expression,
-) -> UnaryLogicalExpression {
-    UnaryLogicalExpression::C2(UnaryLogicalExpressionC2 {
-        left_expr: Box::new(left_expr),
-        right_expr: Box::new(right_expr),
-    })
-}
-#[derive(Debug, Clone)]
-pub struct UnaryRelationalExpression {
-    pub expr: Box<Expression>,
-}
-pub fn unary_relational_expression_c1(
-    _ctx: &Ctx,
     expr: Expression,
-) -> UnaryRelationalExpression {
-    UnaryRelationalExpression {
+) -> UnaryLogicalExpression {
+    UnaryLogicalExpression {
         expr: Box::new(expr),
     }
 }
@@ -1006,6 +1547,11 @@ pub struct BinaryMathExpressionC7 {
     pub right_expr: Box<Expression>,
 }
 #[derive(Debug, Clone)]
+pub struct BinaryMathExpressionC8 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
 pub enum BinaryMathExpression {
     C1(BinaryMathExpressionC1),
     C2(BinaryMathExpressionC2),
@@ -1014,6 +1560,7 @@ pub enum BinaryMathExpression {
     C5(BinaryMathExpressionC5),
     C6(BinaryMathExpressionC6),
     C7(BinaryMathExpressionC7),
+    C8(BinaryMathExpressionC8),
 }
 pub fn binary_math_expression_c1(
     _ctx: &Ctx,
@@ -1085,6 +1632,16 @@ pub fn binary_math_expression_c7(
         right_expr: Box::new(right_expr),
     })
 }
+pub fn binary_math_expression_c8(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryMathExpression {
+    BinaryMathExpression::C8(BinaryMathExpressionC8 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
 #[derive(Debug, Clone)]
 pub struct UnaryMathExpressionC1 {
     pub expr: Box<Expression>,
@@ -1109,6 +1666,118 @@ pub fn unary_math_expression_c2(_ctx: &Ctx, expr: Expression) -> UnaryMathExpres
     })
 }
 #[derive(Debug, Clone)]
+pub enum BitwiseExpression {
+    BinaryBitwiseExpression(BinaryBitwiseExpression),
+    UnaryBitwiseExpression(UnaryBitwiseExpression),
+}
+pub fn bitwise_expression_binary_bitwise_expression(
+    _ctx: &Ctx,
+    binary_bitwise_expression: BinaryBitwiseExpression,
+) -> BitwiseExpression {
+    BitwiseExpression::BinaryBitwiseExpression(binary_bitwise_expression)
+}
+pub fn bitwise_expression_unary_bitwise_expression(
+    _ctx: &Ctx,
+    unary_bitwise_expression: UnaryBitwiseExpression,
+) -> BitwiseExpression {
+    BitwiseExpression::UnaryBitwiseExpression(unary_bitwise_expression)
+}
+#[derive(Debug, Clone)]
+pub struct BinaryBitwiseExpressionC1 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub struct BinaryBitwiseExpressionC2 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub struct BinaryBitwiseExpressionC3 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub struct BinaryBitwiseExpressionC4 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub struct BinaryBitwiseExpressionC5 {
+    pub left_expr: Box<Expression>,
+    pub right_expr: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub enum BinaryBitwiseExpression {
+    C1(BinaryBitwiseExpressionC1),
+    C2(BinaryBitwiseExpressionC2),
+    C3(BinaryBitwiseExpressionC3),
+    C4(BinaryBitwiseExpressionC4),
+    C5(BinaryBitwiseExpressionC5),
+}
+pub fn binary_bitwise_expression_c1(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryBitwiseExpression {
+    BinaryBitwiseExpression::C1(BinaryBitwiseExpressionC1 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
+pub fn binary_bitwise_expression_c2(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryBitwiseExpression {
+    BinaryBitwiseExpression::C2(BinaryBitwiseExpressionC2 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
+pub fn binary_bitwise_expression_c3(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryBitwiseExpression {
+    BinaryBitwiseExpression::C3(BinaryBitwiseExpressionC3 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
+pub fn binary_bitwise_expression_c4(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryBitwiseExpression {
+    BinaryBitwiseExpression::C4(BinaryBitwiseExpressionC4 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
+pub fn binary_bitwise_expression_c5(
+    _ctx: &Ctx,
+    left_expr: Expression,
+    right_expr: Expression,
+) -> BinaryBitwiseExpression {
+    BinaryBitwiseExpression::C5(BinaryBitwiseExpressionC5 {
+        left_expr: Box::new(left_expr),
+        right_expr: Box::new(right_expr),
+    })
+}
+#[derive(Debug, Clone)]
+pub struct UnaryBitwiseExpression {
+    pub expr: Box<Expression>,
+}
+pub fn unary_bitwise_expression_c1(
+    _ctx: &Ctx,
+    expr: Expression,
+) -> UnaryBitwiseExpression {
+    UnaryBitwiseExpression {
+        expr: Box::new(expr),
+    }
+}
+#[derive(Debug, Clone)]
 pub enum PostfixExpression {
     RValue(RValue),
     Constant(Constant),
@@ -1117,8 +1786,8 @@ pub enum PostfixExpression {
     TensorLiteral(TensorLiteral),
     TensorExpression(TensorExpression),
     FunctionCall(FunctionCall),
+    InputExpression(InputExpression),
     AttributeAccess(AttributeAccess),
-    RangeExpression(RangeExpression),
 }
 pub fn postfix_expression_rvalue(_ctx: &Ctx, rvalue: RValue) -> PostfixExpression {
     PostfixExpression::RValue(rvalue)
@@ -1156,99 +1825,108 @@ pub fn postfix_expression_function_call(
 ) -> PostfixExpression {
     PostfixExpression::FunctionCall(function_call)
 }
+pub fn postfix_expression_input_expression(
+    _ctx: &Ctx,
+    input_expression: InputExpression,
+) -> PostfixExpression {
+    PostfixExpression::InputExpression(input_expression)
+}
 pub fn postfix_expression_attribute_access(
     _ctx: &Ctx,
     attribute_access: AttributeAccess,
 ) -> PostfixExpression {
     PostfixExpression::AttributeAccess(attribute_access)
 }
-pub fn postfix_expression_range_expression(
-    _ctx: &Ctx,
-    range_expression: RangeExpression,
-) -> PostfixExpression {
-    PostfixExpression::RangeExpression(range_expression)
-}
 #[derive(Debug, Clone)]
 pub struct RValue {
-    pub _ref: DotAccessExpression,
+    pub _ref: Box<DotAccessExpression>,
 }
 pub fn rvalue_c1(_ctx: &Ctx, _ref: DotAccessExpression) -> RValue {
-    RValue { _ref }
+    RValue { _ref: Box::new(_ref) }
 }
 #[derive(Debug, Clone)]
 pub enum RangeExpression {
-    RangeWithoutStepExpression(RangeWithoutStepExpression),
-    RangeWithStepExpression(RangeWithStepExpression),
+    RangeFromTo(RangeFromTo),
+    RangeFrom(RangeFrom),
+    RangeTo(RangeTo),
+    RangeFromStepTo(RangeFromStepTo),
+    RangeAll(RangeAll),
 }
-pub fn range_expression_range_without_step_expression(
+pub fn range_expression_range_from_to(
     _ctx: &Ctx,
-    range_without_step_expression: RangeWithoutStepExpression,
+    range_from_to: RangeFromTo,
 ) -> RangeExpression {
-    RangeExpression::RangeWithoutStepExpression(range_without_step_expression)
+    RangeExpression::RangeFromTo(range_from_to)
 }
-pub fn range_expression_range_with_step_expression(
+pub fn range_expression_range_from(
     _ctx: &Ctx,
-    range_with_step_expression: RangeWithStepExpression,
+    range_from: RangeFrom,
 ) -> RangeExpression {
-    RangeExpression::RangeWithStepExpression(range_with_step_expression)
+    RangeExpression::RangeFrom(range_from)
+}
+pub fn range_expression_range_to(_ctx: &Ctx, range_to: RangeTo) -> RangeExpression {
+    RangeExpression::RangeTo(range_to)
+}
+pub fn range_expression_range_from_step_to(
+    _ctx: &Ctx,
+    range_from_step_to: RangeFromStepTo,
+) -> RangeExpression {
+    RangeExpression::RangeFromStepTo(range_from_step_to)
+}
+pub fn range_expression_range_all(_ctx: &Ctx, range_all: RangeAll) -> RangeExpression {
+    RangeExpression::RangeAll(range_all)
 }
 #[derive(Debug, Clone)]
-pub enum RangeOperand {
-    RValue(RValue),
-    Constant(Constant),
-    ExprInParenthesis(ExprInParenthesis),
-    FunctionCall(FunctionCall),
+pub struct RangeFromTo {
+    pub start: Box<Expression>,
+    pub stop: Box<Expression>,
 }
-pub fn range_operand_rvalue(_ctx: &Ctx, rvalue: RValue) -> RangeOperand {
-    RangeOperand::RValue(rvalue)
-}
-pub fn range_operand_constant(_ctx: &Ctx, constant: Constant) -> RangeOperand {
-    RangeOperand::Constant(constant)
-}
-pub fn range_operand_expr_in_parenthesis(
-    _ctx: &Ctx,
-    expr_in_parenthesis: ExprInParenthesis,
-) -> RangeOperand {
-    RangeOperand::ExprInParenthesis(expr_in_parenthesis)
-}
-pub fn range_operand_function_call(
-    _ctx: &Ctx,
-    function_call: FunctionCall,
-) -> RangeOperand {
-    RangeOperand::FunctionCall(function_call)
-}
-#[derive(Debug, Clone)]
-pub struct RangeWithoutStepExpression {
-    pub start: RangeOperand,
-    pub stop: RangeOperand,
-}
-pub fn range_without_step_expression_c1(
-    _ctx: &Ctx,
-    start: RangeOperand,
-    stop: RangeOperand,
-) -> RangeWithoutStepExpression {
-    RangeWithoutStepExpression {
-        start,
-        stop,
+pub fn range_from_to_c1(_ctx: &Ctx, start: Expression, stop: Expression) -> RangeFromTo {
+    RangeFromTo {
+        start: Box::new(start),
+        stop: Box::new(stop),
     }
 }
 #[derive(Debug, Clone)]
-pub struct RangeWithStepExpression {
-    pub start: RangeOperand,
-    pub stop: RangeOperand,
-    pub step: RangeOperand,
+pub struct RangeFrom {
+    pub start: Box<Expression>,
 }
-pub fn range_with_step_expression_c1(
-    _ctx: &Ctx,
-    start: RangeOperand,
-    stop: RangeOperand,
-    step: RangeOperand,
-) -> RangeWithStepExpression {
-    RangeWithStepExpression {
-        start,
-        stop,
-        step,
+pub fn range_from_c1(_ctx: &Ctx, start: Expression) -> RangeFrom {
+    RangeFrom {
+        start: Box::new(start),
     }
+}
+#[derive(Debug, Clone)]
+pub struct RangeTo {
+    pub stop: Box<Expression>,
+}
+pub fn range_to_c1(_ctx: &Ctx, stop: Expression) -> RangeTo {
+    RangeTo { stop: Box::new(stop) }
+}
+#[derive(Debug, Clone)]
+pub struct RangeFromStepTo {
+    pub start: Box<Expression>,
+    pub stop: Box<Expression>,
+    pub step: Box<Expression>,
+}
+pub fn range_from_step_to_c1(
+    _ctx: &Ctx,
+    start: Expression,
+    stop: Expression,
+    step: Expression,
+) -> RangeFromStepTo {
+    RangeFromStepTo {
+        start: Box::new(start),
+        stop: Box::new(stop),
+        step: Box::new(step),
+    }
+}
+#[derive(Debug, Clone)]
+pub enum RangeAll {
+    Colon,
+}
+pub fn range_all_colon(_ctx: &Ctx) -> RangeAll {
+    RangeAll::Colon
 }
 #[derive(Debug, Clone)]
 pub struct ExprInParenthesis {
@@ -1266,20 +1944,46 @@ pub struct TensorLiteral {
 pub fn tensor_literal_c1(_ctx: &Ctx, expr: Cube) -> TensorLiteral {
     TensorLiteral { expr }
 }
-pub type TransposeExpression = Box<PostfixExpression>;
-pub fn transpose_expression_postfix_expression(
+#[derive(Debug, Clone)]
+pub struct TransposeExpression {
+    pub expr: Box<PostfixExpression>,
+}
+pub fn transpose_expression_c1(
     _ctx: &Ctx,
-    postfix_expression: PostfixExpression,
+    expr: PostfixExpression,
 ) -> TransposeExpression {
-    Box::new(postfix_expression)
+    TransposeExpression {
+        expr: Box::new(expr),
+    }
 }
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
     pub id: Id,
+    pub alternative: AlternativeOpt,
     pub arguments_list: Argument0,
 }
-pub fn function_call_c1(_ctx: &Ctx, id: Id, arguments_list: Argument0) -> FunctionCall {
-    FunctionCall { id, arguments_list }
+pub fn function_call_c1(
+    _ctx: &Ctx,
+    id: Id,
+    alternative: AlternativeOpt,
+    arguments_list: Argument0,
+) -> FunctionCall {
+    FunctionCall {
+        id,
+        alternative,
+        arguments_list,
+    }
+}
+pub type AlternativeOpt = Option<AlternativeOptNoO>;
+#[derive(Debug, Clone)]
+pub enum AlternativeOptNoO {
+    Alternative,
+}
+pub fn alternative_opt_alternative(_ctx: &Ctx) -> AlternativeOpt {
+    Some(AlternativeOptNoO::Alternative)
+}
+pub fn alternative_opt_empty(_ctx: &Ctx) -> AlternativeOpt {
+    None
 }
 pub type Argument1 = Vec<Argument>;
 pub fn argument1_c1(
@@ -1299,6 +2003,15 @@ pub fn argument0_argument1(_ctx: &Ctx, argument1: Argument1) -> Argument0 {
 }
 pub fn argument0_empty(_ctx: &Ctx) -> Argument0 {
     None
+}
+#[derive(Debug, Clone)]
+pub struct InputExpression {
+    pub _type: Box<TypeSpec>,
+}
+pub fn input_expression_c1(_ctx: &Ctx, _type: TypeSpec) -> InputExpression {
+    InputExpression {
+        _type: Box::new(_type),
+    }
 }
 #[derive(Debug, Clone)]
 pub struct IndexExpressionList {
@@ -1328,116 +2041,25 @@ pub fn index_expression1_index_expression(
     vec![index_expression]
 }
 #[derive(Debug, Clone)]
-pub enum IndexExpression {
-    IndexCopyExpr(IndexCopyExpr),
-    IndexFromPosition(IndexFromPosition),
-    IndexBounds(IndexBounds),
-    IndexBoundsStep(IndexBoundsStep),
-    IndexUpperBound(IndexUpperBound),
-    IndexLowerBound(IndexLowerBound),
-}
-pub fn index_expression_index_copy_expr(
-    _ctx: &Ctx,
-    index_copy_expr: IndexCopyExpr,
-) -> IndexExpression {
-    IndexExpression::IndexCopyExpr(index_copy_expr)
-}
-pub fn index_expression_index_from_position(
-    _ctx: &Ctx,
-    index_from_position: IndexFromPosition,
-) -> IndexExpression {
-    IndexExpression::IndexFromPosition(index_from_position)
-}
-pub fn index_expression_index_bounds(
-    _ctx: &Ctx,
-    index_bounds: IndexBounds,
-) -> IndexExpression {
-    IndexExpression::IndexBounds(index_bounds)
-}
-pub fn index_expression_index_bounds_step(
-    _ctx: &Ctx,
-    index_bounds_step: IndexBoundsStep,
-) -> IndexExpression {
-    IndexExpression::IndexBoundsStep(index_bounds_step)
-}
-pub fn index_expression_index_upper_bound(
-    _ctx: &Ctx,
-    index_upper_bound: IndexUpperBound,
-) -> IndexExpression {
-    IndexExpression::IndexUpperBound(index_upper_bound)
-}
-pub fn index_expression_index_lower_bound(
-    _ctx: &Ctx,
-    index_lower_bound: IndexLowerBound,
-) -> IndexExpression {
-    IndexExpression::IndexLowerBound(index_lower_bound)
-}
-#[derive(Debug, Clone)]
-pub enum IndexCopyExpr {
-    Colon,
-}
-pub fn index_copy_expr_colon(_ctx: &Ctx) -> IndexCopyExpr {
-    IndexCopyExpr::Colon
-}
-#[derive(Debug, Clone)]
-pub struct IndexFromPosition {
+pub struct IndexExpressionC1 {
     pub expr: Box<Expression>,
 }
-pub fn index_from_position_c1(_ctx: &Ctx, expr: Expression) -> IndexFromPosition {
-    IndexFromPosition {
+#[derive(Debug, Clone)]
+pub struct IndexExpressionC2 {
+    pub expr: RangeExpression,
+}
+#[derive(Debug, Clone)]
+pub enum IndexExpression {
+    C1(IndexExpressionC1),
+    C2(IndexExpressionC2),
+}
+pub fn index_expression_c1(_ctx: &Ctx, expr: Expression) -> IndexExpression {
+    IndexExpression::C1(IndexExpressionC1 {
         expr: Box::new(expr),
-    }
+    })
 }
-#[derive(Debug, Clone)]
-pub struct IndexBounds {
-    pub lower_bound: Box<Expression>,
-    pub upper_bound: Box<Expression>,
-}
-pub fn index_bounds_c1(
-    _ctx: &Ctx,
-    lower_bound: Expression,
-    upper_bound: Expression,
-) -> IndexBounds {
-    IndexBounds {
-        lower_bound: Box::new(lower_bound),
-        upper_bound: Box::new(upper_bound),
-    }
-}
-#[derive(Debug, Clone)]
-pub struct IndexBoundsStep {
-    pub lower_bound: Box<Expression>,
-    pub upper_bound: Box<Expression>,
-    pub step: Box<Expression>,
-}
-pub fn index_bounds_step_c1(
-    _ctx: &Ctx,
-    lower_bound: Expression,
-    upper_bound: Expression,
-    step: Expression,
-) -> IndexBoundsStep {
-    IndexBoundsStep {
-        lower_bound: Box::new(lower_bound),
-        upper_bound: Box::new(upper_bound),
-        step: Box::new(step),
-    }
-}
-#[derive(Debug, Clone)]
-pub struct IndexUpperBound {
-    pub upper_bound: Box<Expression>,
-}
-pub fn index_upper_bound_c1(_ctx: &Ctx, upper_bound: Expression) -> IndexUpperBound {
-    IndexUpperBound {
-        upper_bound: Box::new(upper_bound),
-    }
-}
-#[derive(Debug, Clone)]
-pub struct IndexLowerBound {
-    pub lower_bound: Box<Expression>,
-}
-pub fn index_lower_bound_c1(_ctx: &Ctx, lower_bound: Expression) -> IndexLowerBound {
-    IndexLowerBound {
-        lower_bound: Box::new(lower_bound),
-    }
+pub fn index_expression_c2(_ctx: &Ctx, expr: RangeExpression) -> IndexExpression {
+    IndexExpression::C2(IndexExpressionC2 { expr })
 }
 #[derive(Debug, Clone)]
 pub struct ArgumentC1 {
@@ -1466,7 +2088,7 @@ pub fn argument_c2(_ctx: &Ctx, value: Expression) -> Argument {
 }
 #[derive(Debug, Clone)]
 pub struct LValueTensor {
-    pub expr: DotAccessExpression,
+    pub expr: Box<DotAccessExpression>,
     pub indices: Index1,
 }
 pub fn lvalue_tensor_c1(
@@ -1474,7 +2096,10 @@ pub fn lvalue_tensor_c1(
     expr: DotAccessExpression,
     indices: Index1,
 ) -> LValueTensor {
-    LValueTensor { expr, indices }
+    LValueTensor {
+        expr: Box::new(expr),
+        indices,
+    }
 }
 pub type Index1 = Vec<Index>;
 pub fn index1_c1(_ctx: &Ctx, mut index1: Index1, index: Index) -> Index1 {
@@ -1483,13 +2108,6 @@ pub fn index1_c1(_ctx: &Ctx, mut index1: Index1, index: Index) -> Index1 {
 }
 pub fn index1_index(_ctx: &Ctx, index: Index) -> Index1 {
     vec![index]
-}
-#[derive(Debug, Clone)]
-pub struct Index {
-    pub index: IndexExpressionList,
-}
-pub fn index_c1(_ctx: &Ctx, index: IndexExpressionList) -> Index {
-    Index { index }
 }
 #[derive(Debug, Clone)]
 pub struct TensorExpression {
@@ -1507,17 +2125,27 @@ pub fn tensor_expression_c1(
     }
 }
 #[derive(Debug, Clone)]
+pub struct Index {
+    pub index: IndexExpressionList,
+}
+pub fn index_c1(_ctx: &Ctx, index: IndexExpressionList) -> Index {
+    Index { index }
+}
+#[derive(Debug, Clone)]
 pub struct DotAccessExpression {
     pub names: Id1,
+    pub macro_index: MacroIndexOpt,
     pub optional: QuestionOpt,
 }
 pub fn dot_access_expression_c1(
     _ctx: &Ctx,
     names: Id1,
+    macro_index: MacroIndexOpt,
     optional: QuestionOpt,
 ) -> DotAccessExpression {
     DotAccessExpression {
         names,
+        macro_index,
         optional,
     }
 }
@@ -1529,6 +2157,16 @@ pub fn id1_c1(_ctx: &Ctx, mut id1: Id1, id: Id) -> Id1 {
 pub fn id1_id(_ctx: &Ctx, id: Id) -> Id1 {
     vec![id]
 }
+pub type MacroIndexOpt = Option<MacroIndex>;
+pub fn macro_index_opt_macro_index(
+    _ctx: &Ctx,
+    macro_index: MacroIndex,
+) -> MacroIndexOpt {
+    Some(macro_index)
+}
+pub fn macro_index_opt_empty(_ctx: &Ctx) -> MacroIndexOpt {
+    None
+}
 pub type QuestionOpt = Option<QuestionOptNoO>;
 #[derive(Debug, Clone)]
 pub enum QuestionOptNoO {
@@ -1539,6 +2177,13 @@ pub fn question_opt_question(_ctx: &Ctx) -> QuestionOpt {
 }
 pub fn question_opt_empty(_ctx: &Ctx) -> QuestionOpt {
     None
+}
+#[derive(Debug, Clone)]
+pub struct MacroIndex {
+    pub index: Expression1,
+}
+pub fn macro_index_c1(_ctx: &Ctx, index: Expression1) -> MacroIndex {
+    MacroIndex { index }
 }
 #[derive(Debug, Clone)]
 pub struct Array {
@@ -1606,11 +2251,23 @@ pub fn constant_boolean(_ctx: &Ctx, boolean: Boolean) -> Constant {
     Constant::Boolean(boolean)
 }
 #[derive(Debug, Clone)]
-pub struct Boolean {
-    pub value: BooleanConst,
+pub struct BooleanC1 {
+    pub value: TrueConst,
 }
-pub fn boolean_c1(_ctx: &Ctx, value: BooleanConst) -> Boolean {
-    Boolean { value }
+#[derive(Debug, Clone)]
+pub struct BooleanC2 {
+    pub value: FalseConst,
+}
+#[derive(Debug, Clone)]
+pub enum Boolean {
+    C1(BooleanC1),
+    C2(BooleanC2),
+}
+pub fn boolean_c1(_ctx: &Ctx, value: TrueConst) -> Boolean {
+    Boolean::C1(BooleanC1 { value })
+}
+pub fn boolean_c2(_ctx: &Ctx, value: FalseConst) -> Boolean {
+    Boolean::C2(BooleanC2 { value })
 }
 #[derive(Debug, Clone)]
 pub struct IntegerC1 {
