@@ -1,0 +1,7 @@
+[package]
+name = "tml_tools"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tml_parser = { path = "../tml_parser" }

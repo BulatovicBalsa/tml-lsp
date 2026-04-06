@@ -6,4 +6,9 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
 tower-lsp = "0.20"
-rustemo = "0.9.1"
+
+[workspace]
+members = [
+    "tml_parser",
+    "tml_tools",
+]
