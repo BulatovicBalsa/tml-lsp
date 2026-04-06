@@ -5,6 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tml_parser/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tml_tools/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tml_tools/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/tml_parser/target" />
       <excludeFolder url="file://$MODULE_DIR$/tml_tools/target" />

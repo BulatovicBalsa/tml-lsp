@@ -694,6 +694,7 @@ dependencies = [
 name = "tml_tools"
 version = "0.1.0"
 dependencies = [
+ "rustemo",
  "tml_parser",
 ]
 
