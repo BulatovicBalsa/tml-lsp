@@ -142,18 +142,18 @@ fn test_parenthesis() {
 fn test_if_simple() {
     assert_formats_to(
         r#"
-fn     test():
-    if   x > 0:
-        y = 1
-    end
-end
+            fn     test():
+                if   x > 0:
+                    y = 1
+                end
+            end
         "#,
         r#"
-fn test():
-    if x > 0:
-        y = 1
-    end
-end
+            fn test():
+                if x > 0:
+                    y = 1
+                end
+            end
         "#,
     );
 }
@@ -162,22 +162,22 @@ end
 fn test_if_else() {
     assert_formats_to(
         r#"
-fn test():
-    if   x > 0:
-        y = 1
-    else   :
-        y = 0
-    end
-end
+            fn test():
+                if   x > 0:
+                    y = 1
+                else   :
+                    y = 0
+                end
+            end
         "#,
         r#"
-fn test():
-    if x > 0:
-        y = 1
-    else:
-        y = 0
-    end
-end
+            fn test():
+                if x > 0:
+                    y = 1
+                else:
+                    y = 0
+                end
+            end
         "#,
     );
 }
@@ -186,26 +186,26 @@ end
 fn test_if_elseif_else() {
     assert_formats_to(
         r#"
-fn test():
-    if x > 0:
-        y = 1
-    elseif x == 0:
-        y = 0
-    else:
-        y = -1
-    end
-end
+            fn test():
+                if x > 0:
+                    y = 1
+                elseif x == 0:
+                    y = 0
+                else:
+                    y = -1
+                end
+            end
         "#,
         r#"
-fn test():
-    if x > 0:
-        y = 1
-    elseif x == 0:
-        y = 0
-    else:
-        y = -1
-    end
-end
+            fn test():
+                if x > 0:
+                    y = 1
+                elseif x == 0:
+                    y = 0
+                else:
+                    y = -1
+                end
+            end
         "#,
     );
 }
@@ -216,18 +216,18 @@ end
 fn test_for_range() {
     assert_formats_to(
         r#"
-fn test():
-    for   i  =  0:10:
-        x = i
-    end
-end
+            fn test():
+                for   i  =  0:10:
+                    x = i
+                end
+            end
         "#,
         r#"
-fn test():
-    for i = 0:10:
-        x = i
-    end
-end
+            fn test():
+                for i = 0:10:
+                    x = i
+                end
+            end
         "#,
     );
 }
@@ -236,18 +236,18 @@ end
 fn test_for_range_step() {
     assert_formats_to(
         r#"
-fn test():
-    for i = 0:10:2:
-        x = i
-    end
-end
+            fn test():
+                for i = 0:10:2:
+                    x = i
+                end
+            end
         "#,
         r#"
-fn test():
-    for i = 0:10:2:
-        x = i
-    end
-end
+            fn test():
+                for i = 0:10:2:
+                    x = i
+                end
+            end
         "#,
     );
 }
@@ -258,18 +258,18 @@ end
 fn test_while() {
     assert_formats_to(
         r#"
-fn test():
-    while   x > 0:
-        x = x - 1
-    end
-end
+            fn test():
+                while   x > 0:
+                    x = x - 1
+                end
+            end
         "#,
         r#"
-fn test():
-    while x > 0:
-        x = x - 1
-    end
-end
+            fn test():
+                while x > 0:
+                    x = x - 1
+                end
+            end
         "#,
     );
 }
@@ -280,14 +280,14 @@ end
 fn test_function_no_params() {
     assert_formats_to(
         r#"
-fn   test(  ):
-    x = 1
-end
+            fn   test(  ):
+                x = 1
+            end
         "#,
         r#"
-fn test():
-    x = 1
-end
+            fn test():
+                x = 1
+            end
         "#,
     );
 }
@@ -296,14 +296,14 @@ end
 fn test_function_with_params() {
     assert_formats_to(
         r#"
-fn   add(  int   a ,  int   b  ):
-    return a + b
-end
+            fn   add(  int   a ,  int   b  ):
+                return a + b
+            end
         "#,
         r#"
-fn add(int a, int b):
-    return a + b
-end
+            fn add(int a, int b):
+                return a + b
+            end
         "#,
     );
 }
@@ -342,14 +342,14 @@ fn test_dot_access() {
 fn test_pass() {
     assert_formats_to(
         r#"
-fn test():
-    pass
-end
+            fn test():
+                pass
+            end
         "#,
         r#"
-fn test():
-    pass
-end
+            fn test():
+                pass
+            end
         "#,
     );
 }
@@ -360,14 +360,14 @@ end
 fn test_empty_return() {
     assert_formats_to(
         r#"
-fn test():
-    return
-end
+            fn test():
+                return
+            end
         "#,
         r#"
-fn test():
-    return
-end
+            fn test():
+                return
+            end
         "#,
     );
 }
@@ -376,14 +376,262 @@ end
 fn test_return_value() {
     assert_formats_to(
         r#"
-fn test():
-    return   x  +  1
-end
+            fn test():
+                return   x  +  1
+            end
         "#,
         r#"
-fn test():
-    return x + 1
-end
+            fn test():
+                return x + 1
+            end
         "#,
+    );
+}
+
+// ───────────────────────── 1D ─────────────────────────
+
+#[test]
+fn test_1d_simple() {
+    assert_formats_to(
+        "a = [1, 2, 3]",
+        "a = [1, 2, 3]",
+    );
+}
+
+#[test]
+fn test_1d_extra_whitespace() {
+    assert_formats_to(
+        "a = [  1  ,  2  ,  3  ]",
+        "a = [1, 2, 3]",
+    );
+}
+
+#[test]
+fn test_1d_single_element() {
+    assert_formats_to(
+        "a = [42]",
+        "a = [42]",
+    );
+}
+
+#[test]
+fn test_1d_expressions() {
+    assert_formats_to(
+        "a = [x + 1, y * 2, z - 3]",
+        "a = [x + 1, y * 2, z - 3]",
+    );
+}
+
+#[test]
+fn test_1d_with_tensor_type() {
+    assert_formats_to(
+        "tensor<int, 3> a = [1, 2, 3]",
+        "tensor<int, 3> a = [1, 2, 3]",
+    );
+}
+
+// ───────────────────────── 2D — jednolinijski ako stane ─────────────────────────
+
+#[test]
+fn test_2d_simple_inline() {
+    assert_formats_to(
+        "b = [1, 2, 3; 1, 2, 3]",
+        "b = [1, 2, 3; 1, 2, 3]",
+    );
+}
+
+#[test]
+fn test_2d_extra_whitespace_inline() {
+    assert_formats_to(
+        "b = [  1 , 2 , 3 ;   1 , 2 , 3  ]",
+        "b = [1, 2, 3; 1, 2, 3]",
+    );
+}
+
+#[test]
+fn test_2d_multiline_input_becomes_inline() {
+    // Višelinijski input, ali rezultat je jednolinijski jer stane u 80
+    assert_formats_to(
+        r#"b = [1, 2, 3;
+              1, 2, 3]"#,
+        "b = [1, 2, 3; 1, 2, 3]",
+    );
+}
+
+#[test]
+fn test_2d_long_becomes_multiline() {
+    // Dugački identifikatori — ne stane u 80 chars, mora višelinijski
+    assert_formats_to(
+    "b = [very_long_variable_name_a, very_long_variable_name_b; very_long_variable_name_c, very_long_variable_name_d]",
+r#"b = [
+            very_long_variable_name_a, very_long_variable_name_b;
+            very_long_variable_name_c, very_long_variable_name_d
+        ]"#,
+    );
+}
+
+#[test]
+fn test_2d_with_tensor_type() {
+    assert_formats_to(
+        "tensor<int, 2, 2> a = [1, 2; 3, 4]",
+        "tensor<int, 2, 2> a = [1, 2; 3, 4]",
+    );
+}
+
+// ───────────────────────── 3D — uvek višelinijski ─────────────────────────
+
+#[test]
+fn test_3d_simple() {
+    assert_formats_to(
+    "c = [1, 2; 3, 4 | 5, 6; 7, 8]",
+r#"c = [
+            1, 2;
+            3, 4 |
+            5, 6;
+            7, 8
+        ]"#,
+    );
+}
+
+#[test]
+fn test_3d_multiline_input() {
+    assert_formats_to(
+        r#"c = [1, 2, 3;
+              1, 2, 3 |
+              1, 2, 3;
+              1, 2, 3
+          ]"#,
+        r#"c = [
+            1, 2, 3;
+            1, 2, 3 |
+            1, 2, 3;
+            1, 2, 3
+        ]"#,
+    );
+}
+
+#[test]
+fn test_3d_with_tensor_type() {
+    assert_formats_to(
+        "tensor<int, 2, 2, 2> a = [1, 2; 3, 4 | 1, 2; 3, 4]",
+        r#"tensor<int, 2, 2, 2> a = [
+            1, 2;
+            3, 4 |
+            1, 2;
+            3, 4
+        ]"#,
+    );
+}
+
+// ───────────────────────── Indentacija unutar funkcije ─────────────────────────
+
+#[test]
+fn test_3d_inside_function_indented() {
+    // Unutar funkcije indent=1, closing bracket mora biti na indent=1
+    assert_formats_to(
+        r#"
+            fn test():
+                c = [1, 2; 3, 4 | 5, 6; 7, 8]
+            end
+        "#,
+        r#"
+            fn test():
+                c = [
+                    1, 2;
+                    3, 4 |
+                    5, 6;
+                    7, 8
+                ]
+            end
+        "#,
+    );
+    let x = r#"
+            fn test():
+                c = [1, 2; 3, 4 | 5, 6; 7, 8]
+            end
+        "#;
+    let parser = TmlParser::new();
+    println!("{:#?}", parser.parse(x).expect("Parse failed").format(0));
+}
+
+#[test]
+fn test_2d_inside_function_stays_inline() {
+    assert_formats_to(
+        r#"
+            fn test():
+                b = [1, 2; 3, 4]
+            end
+        "#,
+        r#"
+            fn test():
+                b = [1, 2; 3, 4]
+            end
+        "#,
+    );
+}
+
+// ───────────────────────── Array of arrays ─────────────────────────
+
+#[test]
+fn test_arr_of_arrays() {
+    assert_formats_to(
+        r#"arr_of_arrays = [[1, 2], [1, 2], [1, 2]]"#,
+        r#"arr_of_arrays = [[1, 2], [1, 2], [1, 2]]"#,
+    );
+}
+
+#[test]
+fn test_arr_of_arrays_multiline_input() {
+    assert_formats_to(
+        r#"arr_of_arrays = [
+            [1, 2],
+            [1, 2],
+            [1, 2]
+        ]"#,
+        r#"arr_of_arrays = [[1, 2], [1, 2], [1, 2]]"#,
+    );
+}
+
+#[test]
+fn test_cube_of_arrays() {
+    assert_formats_to(
+        r#"cube_of_arrays = [[1], [2]; [1], [2] | [1], [2]; [1], [2]]"#,
+        r#"cube_of_arrays = [
+            [1], [2];
+            [1], [2] |
+            [1], [2];
+            [1], [2]
+        ]"#,
+    );
+}
+
+// ───────────────────────── Array of expressions ─────────────────────────
+
+#[test]
+fn test_arr_of_expressions() {
+    assert_formats_to(
+        r#"arr_of_arrays = [arr + 1, arr + 2, arr + 3]"#,
+        r#"arr_of_arrays = [arr + 1, arr + 2, arr + 3]"#,
+    );
+}
+
+// ───────────────────────── Broadcasting scalar ─────────────────────────
+
+#[test]
+fn test_broadcast_scalar() {
+    // tensor<int, 3> a = 1 — nije tensor literal, samo scalar rvalue
+    assert_formats_to(
+        "tensor<int, 3> a = 1",
+        "tensor<int, 3> a = 1",
+    );
+}
+
+// ───────────────────────── Nested tensor type ─────────────────────────
+
+#[test]
+fn test_array_of_arrays_with_tensor_type() {
+    assert_formats_to(
+        "tensor<tensor<int, 2>, 2> a = [[1, 2], [3, 4]]",
+        "tensor<tensor<int, 2>, 2> a = [[1, 2], [3, 4]]",
     );
 }

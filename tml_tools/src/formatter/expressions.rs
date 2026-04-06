@@ -143,19 +143,96 @@ impl Format for TransposeExpression {
     }
 }
 
+const MAX_LINE_WIDTH: usize = 80;
+
 impl Format for TensorLiteral {
     fn format(&self, indent: usize) -> String {
-        format!("[{}]", self.expr.format(indent))
+        let cube = &self.expr;
+        let is_3d = cube.elements.len() > 1;
+        let is_2d = !is_3d && cube.elements[0].elements.len() > 1;
+
+        if is_3d {
+            // uvek višelinijski
+            format_cube_multiline(cube, indent)
+        } else if is_2d {
+            // jednolinijski ako stane u 80 chars, inače višelinijski
+            let single = format!("[{}]", format_cube_inline(cube));
+            if indent * 4 + single.len() <= MAX_LINE_WIDTH {
+                single
+            } else {
+                format_cube_multiline(cube, indent)
+            }
+        } else {
+            // 1D — uvek jednolinijski
+            format!("[{}]", format_cube_inline(cube))
+        }
     }
 }
 
+// Inline format: [1, 2; 3, 4]
+fn format_cube_inline(cube: &Cube) -> String {
+    cube.elements
+        .iter()
+        .map(|matrix| {
+            matrix.elements
+                .iter()
+                .map(|array| {
+                    array.elements
+                        .iter()
+                        .map(|e| e.format(0))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn format_cube_multiline(cube: &Cube, indent: usize) -> String {
+    use super::indent_str;
+    let inner_indent = indent_str(indent + 1);
+    let close_indent = indent_str(indent);
+
+    let last_matrix = cube.elements.len() - 1;
+    let body = cube.elements
+        .iter()
+        .enumerate()
+        .map(|(mi, matrix)| {
+            let last_row = matrix.elements.len() - 1;
+            matrix.elements
+                .iter()
+                .enumerate()
+                .map(|(ri, array)| {
+                    let row = array.elements
+                        .iter()
+                        .map(|e| e.format(indent + 1))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    // separatori: ';' za kraj reda, '|' za kraj matrice
+                    let sep = if ri < last_row {
+                        ";"
+                    } else if mi < last_matrix {
+                        " |"
+                    } else {
+                        ""
+                    };
+                    format!("{}{}{}", inner_indent, row, sep)
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!("[\n{}\n{}]", body, close_indent)
+}
+
 impl Format for Cube {
-    fn format(&self, indent: usize) -> String {
-        self.elements
-            .iter()
-            .map(|m| m.format(indent))
-            .collect::<Vec<_>>()
-            .join(" | ")
+    fn format(&self, _indent: usize) -> String {
+        format_cube_inline(self)
     }
 }
 
