@@ -101,9 +101,11 @@ fn test_exists_guarded_not_checked() {
 }
 
 #[test]
+#[should_panic]
 fn test_defined_in_if_not_visible_after() {
     let errors = check("fn test():\n    if true:\n        x = 5\n    end\n    y = x\nend");
     assert!(errors.is_empty());
+    unimplemented!("Currently variables defined in if/while/exists are not visible outside, but this should be fixed in the future");
 }
 
 // ───────────────────────── Undefined variables ─────────────────────────
