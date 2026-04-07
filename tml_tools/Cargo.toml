@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 tml_parser = { path = "../tml_parser" }
+rustemo = "0.9.1"
 
 [dev-dependencies]
 tml_parser = { path = "../tml_parser" }

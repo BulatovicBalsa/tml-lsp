@@ -1,6 +1,6 @@
 /// This file is maintained by rustemo but can be modified manually.
 /// All manual changes will be preserved except non-doc comments.
-use rustemo::Token as RustemoToken;
+use rustemo::{Context as RustemoContext, Position, Token as RustemoToken};
 use super::tml::{TokenKind, Context};
 pub type Input = str;
 pub type Ctx<'i> = Context<'i, Input>;
@@ -1840,9 +1840,13 @@ pub fn postfix_expression_attribute_access(
 #[derive(Debug, Clone)]
 pub struct RValue {
     pub _ref: Box<DotAccessExpression>,
+    pub position: Position,
 }
 pub fn rvalue_c1(_ctx: &Ctx, _ref: DotAccessExpression) -> RValue {
-    RValue { _ref: Box::new(_ref) }
+    RValue {
+        _ref: Box::new(_ref),
+        position: _ctx.position(),
+    }
 }
 #[derive(Debug, Clone)]
 pub enum RangeExpression {

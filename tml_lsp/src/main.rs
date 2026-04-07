@@ -8,6 +8,7 @@ use tml_parser::tml::TmlParser;
 use tml_tools::symbol_table::{
     Scope, SimpleTypeKind, SymbolTable, SymbolTableBuilder, SymbolType,
 };
+use tml_tools::rvalue_collector::{RValueCollector, RValueRef};
 
 // ───────────────────────── Backend ─────────────────────────
 
@@ -15,6 +16,7 @@ struct Backend {
     client: Client,
     symbol_tables: RwLock<HashMap<String, SymbolTable>>,
     documents: RwLock<HashMap<String, String>>,
+    rvalue_refs: RwLock<HashMap<String, Vec<RValueRef>>>,
 }
 
 impl Backend {
@@ -23,6 +25,7 @@ impl Backend {
             client,
             symbol_tables: RwLock::new(HashMap::new()),
             documents: RwLock::new(HashMap::new()),
+            rvalue_refs: RwLock::new(HashMap::new()),
         }
     }
 
@@ -30,25 +33,27 @@ impl Backend {
         let key = uri.to_string();
         self.documents.write().await.insert(key.clone(), text.clone());
 
-        // Parsiranje se dešava u blocking thread-u jer TmlParser nije Send
         let text_clone = text.replace("\r\n", "\n").replace('\r', "\n");
         let parse_result = tokio::task::spawn_blocking(move || {
             let parser = TmlParser::new();
             parser.parse(&text_clone).map(|ast| {
-                SymbolTableBuilder::new().build(&ast)
+                let (table, errors) = SymbolTableBuilder::new().build(&ast);
+                let refs = RValueCollector::new().collect(&ast);
+                (table, errors, refs)
             })
         })
             .await;
 
         match parse_result {
-            Ok(Ok((table, errors))) => {
+            Ok(Ok((table, errors, refs))) => {
                 self.client
                     .log_message(
                         MessageType::INFO,
                         format!(
-                            "Parsed OK — {} symbol(s), {} error(s)",
+                            "Parsed OK — {} symbol(s), {} error(s), {} rvalue ref(s)",
                             table.symbols.len(),
-                            errors.len()
+                            errors.len(),
+                            refs.len(),
                         ),
                     )
                     .await;
@@ -60,7 +65,8 @@ impl Backend {
                         )
                         .await;
                 }
-                self.symbol_tables.write().await.insert(key, table);
+                self.symbol_tables.write().await.insert(key.clone(), table);
+                self.rvalue_refs.write().await.insert(key, refs);
             }
             Ok(Err(e)) => {
                 self.client
@@ -70,6 +76,7 @@ impl Backend {
                     )
                     .await;
                 self.symbol_tables.write().await.remove(&key);
+                self.rvalue_refs.write().await.remove(&key);
             }
             Err(e) => {
                 self.client
@@ -79,36 +86,6 @@ impl Backend {
                     )
                     .await;
             }
-        }
-    }
-
-    fn word_at_position(text: &str, position: Position) -> Option<String> {
-        let line = text.lines().nth(position.line as usize)?;
-        let char_idx = position.character as usize;
-
-        if char_idx > line.len() {
-            return None;
-        }
-
-        let start = line[..char_idx]
-            .rfind(|c: char| !c.is_alphanumeric() && c != '_')
-            .map(|i| i + 1)
-            .unwrap_or(0);
-
-        let end = line[char_idx..]
-            .find(|c: char| !c.is_alphanumeric() && c != '_')
-            .map(|i| i + char_idx)
-            .unwrap_or(line.len());
-
-        if start >= end {
-            return None;
-        }
-
-        let word = &line[start..end];
-        if word.is_empty() {
-            None
-        } else {
-            Some(word.to_string())
         }
     }
 
@@ -146,6 +123,17 @@ impl Backend {
             "```tml\nfn {}({}){}\n```",
             func.name, params, ret
         ))
+    }
+
+    /// Find RValue Ref at cursor position
+    fn find_rvalue_at(
+        refs: &[RValueRef],
+        cursor_line: u32,
+        cursor_col: u32,
+    ) -> Option<&RValueRef> {
+        refs.iter().find(|r| {
+            r.position.contains_cursor(cursor_line, cursor_col, r.name.len())
+        })
     }
 }
 
@@ -220,6 +208,7 @@ impl LanguageServer for Backend {
         let key = params.text_document.uri.to_string();
         self.documents.write().await.remove(&key);
         self.symbol_tables.write().await.remove(&key);
+        self.rvalue_refs.write().await.remove(&key);
     }
 
     // ── Hover ──
@@ -228,22 +217,51 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position_params.text_document.uri.to_string();
         let position = params.text_document_position_params.position;
 
-        let text = match self.documents.read().await.get(&uri) {
-            Some(t) => t.clone(),
-            None => return Ok(None),
+        // Try precise hover over RValueRef positions
+        let refs = self.rvalue_refs.read().await;
+        let word = if let Some(doc_refs) = refs.get(&uri) {
+            match Self::find_rvalue_at(doc_refs, position.line, position.character) {
+                Some(r) => {
+                    self.client
+                        .log_message(
+                            MessageType::INFO,
+                            format!("Hover via RValueRef: '{}' at {}:{}", r.name, r.position.line, r.position.column),
+                        )
+                        .await;
+                    r.name.clone()
+                }
+                // Fallback to word extraction if there is no RValueRef's at current position
+                None => {
+                    drop(refs);
+                    let text = match self.documents.read().await.get(&uri) {
+                        Some(t) => t.clone(),
+                        None => return Ok(None),
+                    };
+                    match Self::word_at_position(&text, position) {
+                        Some(w) => {
+                            self.client
+                                .log_message(
+                                    MessageType::INFO,
+                                    format!("Hover via word extraction: '{}'", w),
+                                )
+                                .await;
+                            w
+                        }
+                        None => return Ok(None),
+                    }
+                }
+            }
+        } else {
+            drop(refs);
+            let text = match self.documents.read().await.get(&uri) {
+                Some(t) => t.clone(),
+                None => return Ok(None),
+            };
+            match Self::word_at_position(&text, position) {
+                Some(w) => w,
+                None => return Ok(None),
+            }
         };
-
-        let word = match Self::word_at_position(&text, position) {
-            Some(w) => w,
-            None => return Ok(None),
-        };
-
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("Hover requested for word: '{}'", word),
-            )
-            .await;
 
         let tables = self.symbol_tables.read().await;
         let content = tables
@@ -253,7 +271,6 @@ impl LanguageServer for Backend {
                     .or_else(|| Self::hover_for_symbol(&word, t))
             });
 
-        // Ako nije nadjen u symbol table, ne prikazujemo nista
         match content {
             None => Ok(None),
             Some(markdown) => Ok(Some(Hover {
@@ -266,7 +283,8 @@ impl LanguageServer for Backend {
         }
     }
 
-    // Nova metoda u LanguageServer impl:
+    // ── Formatting ──
+
     async fn formatting(
         &self,
         params: DocumentFormattingParams,
@@ -294,7 +312,6 @@ impl LanguageServer for Backend {
 
         match format_result {
             Ok(Some(formatted)) => {
-                // Zameni ceo dokument sa formatiranim tekstom
                 let lines = text.lines().count();
                 let last_line_len = text.lines().last().map(|l| l.len()).unwrap_or(0);
 
@@ -326,6 +343,44 @@ impl LanguageServer for Backend {
                 Ok(None)
             }
         }
+    }
+}
+
+// ───────────────────────── Helper ─────────────────────────
+
+fn word_at_position(text: &str, position: Position) -> Option<String> {
+    let line = text.lines().nth(position.line as usize)?;
+    let char_idx = position.character as usize;
+
+    if char_idx > line.len() {
+        return None;
+    }
+
+    let start = line[..char_idx]
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+
+    let end = line[char_idx..]
+        .find(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|i| i + char_idx)
+        .unwrap_or(line.len());
+
+    if start >= end {
+        return None;
+    }
+
+    let word = &line[start..end];
+    if word.is_empty() {
+        None
+    } else {
+        Some(word.to_string())
+    }
+}
+
+impl Backend {
+    fn word_at_position(text: &str, position: Position) -> Option<String> {
+        word_at_position(text, position)
     }
 }
 
