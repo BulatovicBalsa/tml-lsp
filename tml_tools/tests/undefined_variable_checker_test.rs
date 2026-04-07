@@ -100,6 +100,12 @@ fn test_exists_guarded_not_checked() {
     assert!(errors.is_empty());
 }
 
+#[test]
+fn test_defined_in_if_not_visible_after() {
+    let errors = check("fn test():\n    if true:\n        x = 5\n    end\n    y = x\nend");
+    assert!(errors.is_empty());
+}
+
 // ───────────────────────── Undefined variables ─────────────────────────
 
 #[test]
