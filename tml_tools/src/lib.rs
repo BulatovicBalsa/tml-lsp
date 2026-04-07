@@ -1,6 +1,7 @@
 pub mod formatter;
 pub mod symbol_table;
 pub mod undefined_variable_checker;
+pub mod function_call_checker;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
