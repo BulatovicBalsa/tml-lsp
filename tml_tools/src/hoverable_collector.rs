@@ -189,7 +189,26 @@ impl AstVisitor for HoverableCollector {
             }
             other => {
                 match other {
-                    Statement::AssignmentStatement(s)     => self.visit_assignment(s, scope),
+                    Statement::AssignmentStatement(s) => {
+                        match s {
+                            AssignmentStatement::VarAssignmentStatement(v) => {
+                                if let Some(first_id) = v.var.names.first() {
+                                    self.nodes.push(HoverableNode {
+                                        kind: HoverableKind::VariableRef {
+                                            name: first_id.value.clone()
+                                        },
+                                        position: SourcePosition::from_rustemo(&first_id.position),
+                                        scope: scope.clone(),
+                                    });
+                                }
+                                self.visit_expression(&v.rvalue, scope);
+                            }
+                            AssignmentStatement::TensorAssignmentStatement(s) => {
+                                self.visit_lvalue_indices(&s.tensor, scope);
+                                self.visit_expression(&s.rvalue, scope);
+                            }
+                        }
+                    }
                     Statement::IoWriteStatement(s)        => self.visit_io_write(s, scope),
                     Statement::FunctionCallStatement(s)   => self.visit_function_call(&s.call, scope),
                     Statement::SelectionStatement(s)      => self.visit_selection(s, scope),
@@ -232,12 +251,15 @@ impl AstVisitor for HoverableCollector {
     fn visit_postfix(&mut self, e: &PostfixExpression, scope: &Scope) {
         match e {
             PostfixExpression::RValue(r) => {
-                let root = r._ref.names.first().cloned().unwrap().value;
-                self.nodes.push(HoverableNode {
-                    kind: HoverableKind::VariableRef { name: root },
-                    position: SourcePosition::from_rustemo(&r._ref.names.first().unwrap().position),
-                    scope: scope.clone(),
-                });
+                if let Some(first_id) = r._ref.names.first() {
+                    self.nodes.push(HoverableNode {
+                        kind: HoverableKind::VariableRef {
+                            name: first_id.value.clone()
+                        },
+                        position: SourcePosition::from_rustemo(&first_id.position),
+                        scope: scope.clone(),
+                    });
+                }
             }
             PostfixExpression::FunctionCall(f) => {
                 self.nodes.push(HoverableNode {
