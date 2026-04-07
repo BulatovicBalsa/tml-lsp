@@ -27,7 +27,7 @@ pub struct HoverableNode {
 }
 
 impl HoverableNode {
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         match &self.kind {
             HoverableKind::VariableRef { name }  => name,
             HoverableKind::VariableDecl { name, .. } => name,

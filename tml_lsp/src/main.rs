@@ -2,7 +2,7 @@ use rustemo::Parser;
 use std::collections::HashMap;
 use tml_parser::tml::TmlParser;
 use tml_tools::hoverable_collector::{HoverableCollector, HoverableNode};
-use tml_tools::symbol_table::SymbolTableBuilder;
+use tml_tools::symbol_table::{SymbolTable, SymbolTableBuilder};
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -14,6 +14,7 @@ struct Backend {
     client: Client,
     documents: RwLock<HashMap<String, String>>,
     hoverable: RwLock<HashMap<String, Vec<HoverableNode>>>,
+    symbol_tables: RwLock<HashMap<String, SymbolTable>>,
 }
 
 impl Backend {
@@ -22,6 +23,7 @@ impl Backend {
             client,
             documents: RwLock::new(HashMap::new()),
             hoverable: RwLock::new(HashMap::new()),
+            symbol_tables: RwLock::new(HashMap::new()),
         }
     }
 
@@ -53,8 +55,9 @@ impl Backend {
                         ),
                     )
                     .await;
+                self.symbol_tables.write().await.insert(key.clone(), table);
                 self.hoverable.write().await.insert(key.clone(), nodes);
-                
+
                 let hov_str = self.hoverable.read().await
                     .get(&key)
                     .map(|v| {
@@ -151,6 +154,9 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
+        let tables = self.symbol_tables.read().await;
+        let table = tables.get(&uri);
+
         self.client
             .log_message(
                 MessageType::INFO,
@@ -162,24 +168,8 @@ impl LanguageServer for Backend {
             .await;
 
         // can't use hover_content because it needs symbol table
-        let content = match &node.kind {
-            tml_tools::hoverable_collector::HoverableKind::VariableRef { name } => {
-                format!("```tml\n{}\n```\n*variable reference*", name)
-            }
-            tml_tools::hoverable_collector::HoverableKind::VariableDecl { name, ty } => {
-                format!(
-                    "```tml\n{} {}\n```\n*declaration*",
-                    tml_tools::hoverable_collector::format_type(ty),
-                    name
-                )
-            }
-            tml_tools::hoverable_collector::HoverableKind::FunctionCall { name } => {
-                format!("```tml\n{}(...)\n```\n*function call*", name)
-            }
-            tml_tools::hoverable_collector::HoverableKind::FunctionDef { name } => {
-                format!("```tml\nfn {}\n```\n*function definition*", name)
-            }
-        };
+        let content = table.and_then(|t| node.hover_content(t))
+            .unwrap_or_else(|| format!("```tml\n{}\n```", node.name()));
 
         Ok(Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
