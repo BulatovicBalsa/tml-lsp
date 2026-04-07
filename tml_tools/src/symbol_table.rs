@@ -101,13 +101,13 @@ impl SymbolTableBuilder {
     // ── Function ──
 
     fn visit_function(&mut self, f: &FunctionDefinition) {
-        let scope = Scope::Function(f.id.clone());
+        let scope = Scope::Function(f.id.value.clone());
 
         let params: Vec<(SymbolType, String)> = match &f.parameters_list {
             None => vec![],
             Some(params) => params
                 .iter()
-                .map(|p| (convert_type_spec(&p._type), p.id.clone()))
+                .map(|p| (convert_type_spec(&p._type), p.id.value.clone()))
                 .collect(),
         };
 
@@ -119,7 +119,7 @@ impl SymbolTableBuilder {
 
         // Register function
         self.table.functions.push(FunctionSignature {
-            name: f.id.clone(),
+            name: f.id.value.clone(),
             params,
             ret_type,
         });
@@ -193,7 +193,7 @@ impl SymbolTableBuilder {
     fn visit_for(&mut self, f: &ForIterationStatement, scope: Scope) {
         // For loop index type is int
         self.add_symbol(
-            &f.header.idx,
+            &f.header.idx.value,
             SymbolType::Simple(SimpleTypeKind::Int),
             scope.clone(),
         );
@@ -250,7 +250,7 @@ fn derived_type_to_string(d: &DerivedType) -> String {
 }
 
 pub fn dot_access_to_string(d: &DotAccessExpression) -> String {
-    let base = d.names.join(".");
+    let base = d.names.iter().map(|id| id.value.clone()).collect::<Vec<_>>().join(".");
     let optional = if d.optional.is_some() { "?" } else { "" };
     format!("{}{}", base, optional)
 }

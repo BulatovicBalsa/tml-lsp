@@ -48,7 +48,7 @@ impl<'a> UndefinedVariableChecker<'a> {
         for decl in &unit.ext_decls {
             match decl {
                 ExternalDeclaration::FunctionDefinition(f) => {
-                    let scope = Scope::Function(f.id.clone());
+                    let scope = Scope::Function(f.id.value.clone());
                     self.visit_statement_block(&f.statement_block, &scope);
                 }
                 ExternalDeclaration::DeclarationStatement(d) => {
@@ -74,7 +74,7 @@ impl<'a> UndefinedVariableChecker<'a> {
     }
 
     fn check_rvalue(&mut self, dot: &DotAccessExpression, scope: &Scope) {
-        let root = dot.names.first().map(|s| s.as_str()).unwrap_or("");
+        let root = dot.names.first().map(|s| s.value.as_str()).unwrap_or("");
         if is_namespace_root(root) {
             return;
         }
@@ -87,7 +87,7 @@ impl<'a> UndefinedVariableChecker<'a> {
     }
 
     fn check_namespace_redeclaration(&mut self, dot: &DotAccessExpression) {
-        let root = dot.names.first().map(|s| s.as_str()).unwrap_or("");
+        let root = dot.names.first().map(|s| s.value.as_str()).unwrap_or("");
         if is_namespace_root(root) {
             self.errors.push(CheckError::RedeclaredNamespace {
                 name: dot_access_to_string(dot),

@@ -47,7 +47,7 @@ impl Format for FunctionDefinition {
         format!(
             "{}fn {}({}){}:\n{}{}end",
             indent_str(indent),
-            self.id,
+            self.id.value,
             params,
             ret,
             body,
@@ -62,7 +62,7 @@ impl Format for Parameter {
             None => String::new(),
             Some(d) => format!(" = {}", d.value.format(indent)),
         };
-        format!("{} {}{}", self._type.format(indent), self.id, default)
+        format!("{} {}{}", self._type.format(indent), self.id.value, default)
     }
 }
 
@@ -270,7 +270,7 @@ impl Format for ForIterationStatement {
         format!(
             "{}for {} = {}:\n{}{}end",
             indent_str(indent),
-            self.header.idx,
+            self.header.idx.value,
             self.header.iterator_expression.format(indent),
             self.body.statement_block.format(indent + 1),
             indent_str(indent)

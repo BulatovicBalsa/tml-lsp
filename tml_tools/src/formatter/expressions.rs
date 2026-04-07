@@ -333,14 +333,14 @@ impl Format for FunctionCall {
                 .collect::<Vec<_>>()
                 .join(", "),
         };
-        format!("{}{}({})", self.id, alt, args)
+        format!("{}{}({})", self.id.value, alt, args)
     }
 }
 
 impl Format for Argument {
     fn format(&self, indent: usize) -> String {
         match self {
-            Argument::C1(c) => format!("{} = {}", c.id, c.value.format(indent)),
+            Argument::C1(c) => format!("{} = {}", c.id.value, c.value.format(indent)),
             Argument::C2(c) => c.value.format(indent),
         }
     }
@@ -479,7 +479,7 @@ impl Format for Boolean {
 
 impl Format for DotAccessExpression {
     fn format(&self, indent: usize) -> String {
-        let base = self.names.join(".");
+        let base = self.names.iter().map(|id| id.value.as_str()).collect::<Vec<_>>().join(".");
         let macro_idx = match &self.macro_index {
             None => String::new(),
             Some(m) => {

@@ -93,7 +93,7 @@ impl<'a> FunctionCallChecker<'a> {
         for decl in &unit.ext_decls {
             match decl {
                 ExternalDeclaration::FunctionDefinition(f) => {
-                    let scope = Scope::Function(f.id.clone());
+                    let scope = Scope::Function(f.id.value.clone());
                     self.visit_statement_block(&f.statement_block, &scope);
                 }
                 ExternalDeclaration::DeclarationStatement(d) => {
@@ -135,8 +135,8 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
         for arg in &args {
             if let Argument::C1(a) = arg {
                 self.errors.push(CallError::NamedArgumentNotAllowed {
-                    function_name: name.clone(),
-                    arg_name: a.id.clone(),
+                    function_name: name.value.clone(),
+                    arg_name: a.id.value.clone(),
                     scope: scope.clone(),
                 });
             }
@@ -148,11 +148,11 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
         }
 
         // Check built-in
-        if let Some(builtin) = lookup_builtin(name) {
+        if let Some(builtin) = lookup_builtin(name.value.as_str()) {
             let got = args.len();
             if builtin.arg_count != got {
                 self.errors.push(CallError::ArgumentCountMismatch {
-                    name: name.clone(),
+                    name: name.value.clone(),
                     expected: builtin.arg_count,
                     got,
                     scope: scope.clone(),
@@ -162,10 +162,10 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
         }
 
         // Check user-defined functions
-        match self.table.lookup_function(name) {
+        match self.table.lookup_function(name.value.as_str()) {
             None => {
                 self.errors.push(CallError::UndefinedFunction {
-                    name: name.clone(),
+                    name: name.value.clone(),
                     scope: scope.clone(),
                 });
             }
@@ -174,7 +174,7 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
                 let got = args.len();
                 if expected != got {
                     self.errors.push(CallError::ArgumentCountMismatch {
-                        name: name.clone(),
+                        name: name.value.clone(),
                         expected,
                         got,
                         scope: scope.clone(),
