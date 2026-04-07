@@ -11,4 +11,5 @@ tower-lsp = "0.20"
 members = [
     "tml_parser",
     "tml_tools",
+    "tml_lsp"
 ]
