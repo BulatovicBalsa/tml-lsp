@@ -1,6 +1,6 @@
 use tml_parser::tml_actions::*;
 
-// ───────────────────────── Tipovi ─────────────────────────
+// ───────────────────────── Types ─────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SimpleTypeKind {
@@ -210,7 +210,7 @@ impl SymbolTableBuilder {
         if duplicate {
             self.errors.push(SymbolError::new(
                 name,
-                &format!("'{}' je vec deklarisano u ovom scopeu", name),
+                &format!("'{}' is already defined in this scope", name),
             ));
         } else {
             self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
