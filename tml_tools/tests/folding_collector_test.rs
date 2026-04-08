@@ -119,3 +119,104 @@ fn test_indented_end_valid() {
     let folds = collect_folds(src);
     assert!(folds.contains(&(1, 3)), "Indented end should still produce fold");
 }
+
+// ───────────────────────── Comments on header colon line ─────────────────────────
+
+#[test]
+fn test_comment_on_fn_header() {
+    // Comment on the same line as the header colon
+    let src = "fn test(): # This is a function\n    x = 1\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 2)), "Expected fold (0, 2) with comment on header, got {:?}", folds);
+}
+
+#[test]
+fn test_comment_on_if_header() {
+    let src = "fn test():\n    if x > 0: # Check condition\n        y = 1\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 3)), "Expected fold for if with comment on header");
+    assert!(folds.contains(&(0, 4)), "Expected fold for fn");
+}
+
+#[test]
+fn test_comment_on_for_header() {
+    let src = "fn test():\n    for i = 0:10: # Loop over range\n        x = i\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 3)), "Expected fold for for with comment on header");
+}
+
+#[test]
+fn test_comment_on_while_header() {
+    let src = "fn test():\n    while x > 0: # Keep looping\n        x = x - 1\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 3)), "Expected fold for while with comment on header");
+}
+
+// ───────────────────────── Comments before block ─────────────────────────
+
+#[test]
+fn test_comment_before_function() {
+    // Comment line before the function should not affect folding
+    let src = "# This is a comment\nfn test():\n    x = 1\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 3)), "Expected fold (1, 3) with comment before fn, got {:?}", folds);
+}
+
+#[test]
+fn test_comment_before_if() {
+    let src = "fn test():\n    # Check if positive\n    if x > 0:\n        y = 1\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(2, 4)), "Expected fold for if after comment");
+    assert!(folds.contains(&(0, 5)), "Expected fold for fn");
+}
+
+#[test]
+fn test_comment_before_for() {
+    let src = "fn test():\n    # Iterate over range\n    for i = 0:10:\n        x = i\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(2, 4)), "Expected fold for for after comment");
+}
+
+// ───────────────────────── Comments inside block ─────────────────────────
+
+#[test]
+fn test_comment_inside_function() {
+    let src = "fn test():\n    # Initialize\n    x = 1\n    # Update\n    y = 2\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 5)), "Expected fold for fn with comments inside, got {:?}", folds);
+}
+
+#[test]
+fn test_comment_inside_for() {
+    let src = "fn test():\n    for i = 0:10:\n        # Process element\n        x = i\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 4)), "Expected fold for for with comment inside");
+    assert!(folds.contains(&(0, 5)), "Expected fold for fn");
+}
+
+// ───────────────────────── Comments after block ─────────────────────────
+
+#[test]
+fn test_comment_after_end() {
+    // Comment after 'end' should not affect folding
+    let src = "fn test():\n    x = 1\nend\n# Done\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 2)), "Expected fold (0, 2) with comment after end, got {:?}", folds);
+}
+
+#[test]
+fn test_comment_between_functions() {
+    let src = "fn foo():\n    x = 1\nend\n# Separator comment\nfn bar():\n    y = 2\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 2)), "Expected fold for foo");
+    assert!(folds.contains(&(4, 6)), "Expected fold for bar after comment");
+}
+
+// ───────────────────────── Multiple comments ─────────────────────────
+
+#[test]
+fn test_multiple_comments_around_block() {
+    let src = "# Pre-comment\nfn test(): # Header comment\n    # Body comment\n    x = 1\nend\n# Post-comment\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 4)), "Expected fold (1, 4) with multiple comments, got {:?}", folds);
+}

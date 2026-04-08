@@ -533,7 +533,7 @@ Ellipsis: '...';
 Dot: '.';
 Dots: '..';
 Comma: ',';
-HeaderColon: /:[ \t]*(\#[^\#]*)?\n/ {15};
+HeaderColon: /:[ \t]*(\#[^\r\n]*)?\r?\n/ {15};
 Semicolon: ';';
 Pipe: '|';
 TypeKw: /\.type\b/ {17};
