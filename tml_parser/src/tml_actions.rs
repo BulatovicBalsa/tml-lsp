@@ -42,9 +42,16 @@ pub type FalseConst = String;
 pub fn false_const(_ctx: &Ctx, token: Token) -> FalseConst {
     token.value.into()
 }
-pub type HeaderColon = String;
+#[derive(Debug, Clone)]
+pub struct HeaderColon {
+    pub value: String,
+    pub position: Position,
+}
 pub fn header_colon(_ctx: &Ctx, token: Token) -> HeaderColon {
-    token.value.into()
+    HeaderColon {
+        value: token.value.into(),
+        position: _ctx.position(),
+    }
 }
 pub type TypeKw = String;
 pub fn type_kw(_ctx: &Ctx, token: Token) -> TypeKw {
@@ -191,6 +198,7 @@ pub struct FunctionDefinition {
     pub ret_type: TypeSpecOpt,
     pub header_colon: HeaderColon,
     pub statement_block: StatementBlock,
+    pub position: Position
 }
 pub fn function_definition_c1(
     _ctx: &Ctx,
@@ -206,6 +214,7 @@ pub fn function_definition_c1(
         ret_type,
         header_colon,
         statement_block,
+        position: _ctx.position(),
     }
 }
 pub type Parameter1 = Vec<Parameter>;
@@ -642,6 +651,7 @@ pub struct SelectionStatement {
     pub if_statement_block: Box<StatementBlock>,
     pub elseif_clause: ElseIfClause0,
     pub else_clause: ElseClauseOpt,
+    pub position: Position
 }
 pub fn selection_statement_c1(
     _ctx: &Ctx,
@@ -657,6 +667,7 @@ pub fn selection_statement_c1(
         if_statement_block: Box::new(if_statement_block),
         elseif_clause,
         else_clause,
+        position: _ctx.position()
     }
 }
 pub type ElseIfClause1 = Vec<ElseIfClause>;
@@ -749,6 +760,7 @@ pub struct ForIterationStatement {
     pub header: ForIterationHeader,
     pub header_colon: HeaderColon,
     pub body: ForIterationBody,
+    pub position: Position
 }
 pub fn for_iteration_statement_c1(
     _ctx: &Ctx,
@@ -760,6 +772,7 @@ pub fn for_iteration_statement_c1(
         header,
         header_colon,
         body,
+        position: _ctx.position()
     }
 }
 #[derive(Debug, Clone)]
@@ -818,6 +831,7 @@ pub struct WhileIterationStatement {
     pub condition: Expression,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
+    pub position: Position
 }
 pub fn while_iteration_statement_c1(
     _ctx: &Ctx,
@@ -829,6 +843,7 @@ pub fn while_iteration_statement_c1(
         condition,
         header_colon,
         statement_block: Box::new(statement_block),
+        position: _ctx.position()
     }
 }
 #[derive(Debug, Clone)]
@@ -906,6 +921,7 @@ pub struct ExistsStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
+    pub position: Position
 }
 pub fn exists_statement_c1(
     _ctx: &Ctx,
@@ -919,6 +935,7 @@ pub fn exists_statement_c1(
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
+        position: _ctx.position()
     }
 }
 pub type DotAccessExpression1 = Vec<DotAccessExpression>;
@@ -942,6 +959,7 @@ pub struct NotExistsStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
+    pub position: Position
 }
 pub fn not_exists_statement_c1(
     _ctx: &Ctx,
@@ -955,6 +973,7 @@ pub fn not_exists_statement_c1(
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
+        position: _ctx.position()
     }
 }
 #[derive(Debug, Clone)]
@@ -963,6 +982,7 @@ pub struct FeedthroughStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
+    pub position: Position
 }
 pub fn feedthrough_statement_c1(
     _ctx: &Ctx,
@@ -976,6 +996,7 @@ pub fn feedthrough_statement_c1(
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
+        position: _ctx.position()
     }
 }
 #[derive(Debug, Clone)]
@@ -984,6 +1005,7 @@ pub struct NotFeedthroughStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
+    pub position: Position
 }
 pub fn not_feedthrough_statement_c1(
     _ctx: &Ctx,
@@ -997,6 +1019,7 @@ pub fn not_feedthrough_statement_c1(
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
+        position: _ctx.position()
     }
 }
 #[derive(Debug, Clone)]
