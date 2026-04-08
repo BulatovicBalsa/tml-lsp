@@ -37,14 +37,14 @@ pub struct TmlFoldingRange {
 
 pub struct FoldingCollector<'a> {
     ranges: Vec<TmlFoldingRange>,
-    text: &'a str,
+    _text: &'a str,
 }
 
 impl<'a> FoldingCollector<'a> {
     pub fn new(text: &'a str) -> Self {
         FoldingCollector {
             ranges: vec![],
-            text,
+            _text: text,
         }
     }
 
@@ -62,7 +62,7 @@ impl<'a> FoldingCollector<'a> {
 
     /// Check if line contains only whitespace chars and 'end'
     fn _is_end_on_own_line(&self, line: usize) -> bool {
-        self.text
+        self._text
             .lines()
             .nth(line)
             .map(|l| l.trim() == "end")

@@ -1,6 +1,7 @@
 use rustemo::Parser;
 use std::collections::HashMap;
 use tml_parser::tml::TmlParser;
+use tml_tools::folding_collector::{FoldingCollector, TmlFoldingRange};
 use tml_tools::hoverable_collector::{HoverableCollector, HoverableNode};
 use tml_tools::symbol_table::{SymbolTable, SymbolTableBuilder};
 use tokio::sync::RwLock;
@@ -15,6 +16,7 @@ struct Backend {
     documents: RwLock<HashMap<String, String>>,
     hoverable: RwLock<HashMap<String, Vec<HoverableNode>>>,
     symbol_tables: RwLock<HashMap<String, SymbolTable>>,
+    folding_ranges: RwLock<HashMap<String, Vec<TmlFoldingRange>>>,
 }
 
 impl Backend {
@@ -24,6 +26,7 @@ impl Backend {
             documents: RwLock::new(HashMap::new()),
             hoverable: RwLock::new(HashMap::new()),
             symbol_tables: RwLock::new(HashMap::new()),
+            folding_ranges: RwLock::new(HashMap::new()),
         }
     }
 
@@ -37,26 +40,29 @@ impl Backend {
             parser.parse(&normalized).map(|ast| {
                 let (table, sym_errors) = SymbolTableBuilder::new().build(&ast);
                 let nodes = HoverableCollector::new().collect(&ast);
-                (table, sym_errors, nodes)
+                let folds = FoldingCollector::new(&normalized).collect(&ast);
+                (table, sym_errors, nodes, folds)
             })
         })
             .await;
 
         match parse_result {
-            Ok(Ok((table, sym_errors, nodes))) => {
+            Ok(Ok((table, sym_errors, nodes, folds))) => {
                 self.client
                     .log_message(
                         MessageType::INFO,
                         format!(
-                            "Parsed OK — {} symbol(s), {} hoverable node(s), {} error(s)",
+                            "Parsed OK — {} symbol(s), {} hoverable node(s), {} fold(s), {} error(s)",
                             table.symbols.len(),
                             nodes.len(),
+                            folds.len(),
                             sym_errors.len(),
                         ),
                     )
                     .await;
                 self.symbol_tables.write().await.insert(key.clone(), table);
                 self.hoverable.write().await.insert(key.clone(), nodes);
+                self.folding_ranges.write().await.insert(key.clone(), folds);
 
                 let hov_str = self.hoverable.read().await
                     .get(&key)
@@ -78,6 +84,7 @@ impl Backend {
                     .log_message(MessageType::ERROR, format!("Parse error: {:?}", e))
                     .await;
                 self.hoverable.write().await.remove(&key);
+                self.folding_ranges.write().await.remove(&key);
             }
             Err(e) => {
                 self.client
@@ -100,6 +107,7 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -135,6 +143,8 @@ impl LanguageServer for Backend {
         let key = params.text_document.uri.to_string();
         self.documents.write().await.remove(&key);
         self.hoverable.write().await.remove(&key);
+        self.symbol_tables.write().await.remove(&key);
+        self.folding_ranges.write().await.remove(&key);
     }
 
     // ── Hover ──
@@ -167,7 +177,6 @@ impl LanguageServer for Backend {
             )
             .await;
 
-        // can't use hover_content because it needs symbol table
         let content = table.and_then(|t| node.hover_content(t))
             .unwrap_or_else(|| format!("```tml\n{}\n```", node.name()));
 
@@ -181,6 +190,28 @@ impl LanguageServer for Backend {
     }
 
     // ── Formatting ──
+
+    async fn folding_range(
+        &self,
+        params: FoldingRangeParams,
+    ) -> Result<Option<Vec<FoldingRange>>> {
+        let uri = params.text_document.uri.to_string();
+
+        let ranges = self.folding_ranges.read().await;
+        let result = ranges.get(&uri).map(|folds| {
+            folds.iter().map(|f| FoldingRange {
+                start_line: f.start_line,
+                end_line: f.end_line,
+                kind: Some(FoldingRangeKind::Region),
+                ..Default::default()
+            })
+                .collect()
+        });
+
+        Ok(result)
+    }
+
+    // ── Folding ──
 
     async fn formatting(
         &self,
@@ -208,13 +239,15 @@ impl LanguageServer for Backend {
 
         match format_result {
             Ok(Some(formatted)) => {
-                let lines = match self.documents.read().await.get(&uri) {
-                    Some(t) => t.lines().count(),
-                    None => return Ok(None),
-                };
-                let last_line_len = match self.documents.read().await.get(&uri) {
-                    Some(t) => t.lines().last().map(|l| l.len()).unwrap_or(0),
-                    None => return Ok(None),
+                let (lines, last_line_len) = {
+                    let docs = self.documents.read().await;
+                    match docs.get(&uri) {
+                        Some(t) => (
+                            t.lines().count(),
+                            t.lines().last().map(|l| l.len()).unwrap_or(0),
+                        ),
+                        None => return Ok(None),
+                    }
                 };
 
                 self.client
