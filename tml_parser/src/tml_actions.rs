@@ -198,7 +198,7 @@ pub struct FunctionDefinition {
     pub ret_type: TypeSpecOpt,
     pub header_colon: HeaderColon,
     pub statement_block: StatementBlock,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn function_definition_c1(
     _ctx: &Ctx,
@@ -207,6 +207,7 @@ pub fn function_definition_c1(
     ret_type: TypeSpecOpt,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
+    end_t: EndT,
 ) -> FunctionDefinition {
     FunctionDefinition {
         id,
@@ -214,7 +215,7 @@ pub fn function_definition_c1(
         ret_type,
         header_colon,
         statement_block,
-        position: _ctx.position(),
+        end_t,
     }
 }
 pub type Parameter1 = Vec<Parameter>;
@@ -651,7 +652,7 @@ pub struct SelectionStatement {
     pub if_statement_block: Box<StatementBlock>,
     pub elseif_clause: ElseIfClause0,
     pub else_clause: ElseClauseOpt,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn selection_statement_c1(
     _ctx: &Ctx,
@@ -660,6 +661,7 @@ pub fn selection_statement_c1(
     if_statement_block: StatementBlock,
     elseif_clause: ElseIfClause0,
     else_clause: ElseClauseOpt,
+    end_t: EndT,
 ) -> SelectionStatement {
     SelectionStatement {
         condition,
@@ -667,7 +669,7 @@ pub fn selection_statement_c1(
         if_statement_block: Box::new(if_statement_block),
         elseif_clause,
         else_clause,
-        position: _ctx.position()
+        end_t,
     }
 }
 pub type ElseIfClause1 = Vec<ElseIfClause>;
@@ -760,19 +762,20 @@ pub struct ForIterationStatement {
     pub header: ForIterationHeader,
     pub header_colon: HeaderColon,
     pub body: ForIterationBody,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn for_iteration_statement_c1(
     _ctx: &Ctx,
     header: ForIterationHeader,
     header_colon: HeaderColon,
     body: ForIterationBody,
+    end_t: EndT,
 ) -> ForIterationStatement {
     ForIterationStatement {
         header,
         header_colon,
         body,
-        position: _ctx.position()
+        end_t,
     }
 }
 #[derive(Debug, Clone)]
@@ -831,19 +834,20 @@ pub struct WhileIterationStatement {
     pub condition: Expression,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn while_iteration_statement_c1(
     _ctx: &Ctx,
     condition: Expression,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
+    end_t: EndT,
 ) -> WhileIterationStatement {
     WhileIterationStatement {
         condition,
         header_colon,
         statement_block: Box::new(statement_block),
-        position: _ctx.position()
+        end_t,
     }
 }
 #[derive(Debug, Clone)]
@@ -921,7 +925,7 @@ pub struct ExistsStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn exists_statement_c1(
     _ctx: &Ctx,
@@ -929,13 +933,14 @@ pub fn exists_statement_c1(
     header_colon: HeaderColon,
     statement_block: StatementBlock,
     else_clause: ElseClauseOpt,
+    end_t: EndT,
 ) -> ExistsStatement {
     ExistsStatement {
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
-        position: _ctx.position()
+        end_t,
     }
 }
 pub type DotAccessExpression1 = Vec<DotAccessExpression>;
@@ -959,7 +964,7 @@ pub struct NotExistsStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn not_exists_statement_c1(
     _ctx: &Ctx,
@@ -967,13 +972,14 @@ pub fn not_exists_statement_c1(
     header_colon: HeaderColon,
     statement_block: StatementBlock,
     else_clause: ElseClauseOpt,
+    end_t: EndT,
 ) -> NotExistsStatement {
     NotExistsStatement {
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
-        position: _ctx.position()
+        end_t,
     }
 }
 #[derive(Debug, Clone)]
@@ -982,7 +988,7 @@ pub struct FeedthroughStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn feedthrough_statement_c1(
     _ctx: &Ctx,
@@ -990,13 +996,14 @@ pub fn feedthrough_statement_c1(
     header_colon: HeaderColon,
     statement_block: StatementBlock,
     else_clause: ElseClauseOpt,
+    end_t: EndT,
 ) -> FeedthroughStatement {
     FeedthroughStatement {
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
-        position: _ctx.position()
+        end_t,
     }
 }
 #[derive(Debug, Clone)]
@@ -1005,7 +1012,7 @@ pub struct NotFeedthroughStatement {
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
     pub else_clause: ElseClauseOpt,
-    pub position: Position
+    pub end_t: EndT,
 }
 pub fn not_feedthrough_statement_c1(
     _ctx: &Ctx,
@@ -1013,13 +1020,14 @@ pub fn not_feedthrough_statement_c1(
     header_colon: HeaderColon,
     statement_block: StatementBlock,
     else_clause: ElseClauseOpt,
+    end_t: EndT,
 ) -> NotFeedthroughStatement {
     NotFeedthroughStatement {
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
         else_clause,
-        position: _ctx.position()
+        end_t,
     }
 }
 #[derive(Debug, Clone)]
@@ -1880,9 +1888,7 @@ pub struct RValue {
     pub _ref: Box<DotAccessExpression>,
 }
 pub fn rvalue_c1(_ctx: &Ctx, _ref: DotAccessExpression) -> RValue {
-    RValue {
-        _ref: Box::new(_ref),
-    }
+    RValue { _ref: Box::new(_ref) }
 }
 #[derive(Debug, Clone)]
 pub enum RangeExpression {
@@ -2379,4 +2385,15 @@ pub struct TmlString {
 }
 pub fn tml_string_c1(_ctx: &Ctx, value: StringConst) -> TmlString {
     TmlString { value }
+}
+#[derive(Debug, Clone)]
+pub struct EndT {
+    pub value: String,
+    pub position: Position,
+}
+pub fn end_t(_ctx: &Ctx, token: Token) -> EndT {
+    EndT {
+        value: token.value.into(),
+        position: _ctx.position(),
+    }
 }

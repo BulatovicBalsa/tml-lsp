@@ -22,7 +22,7 @@ MacroIf                     : 'macro' body=SelectionStatement
 
 FunctionDefinition          : 'fn' id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? HeaderColon
                                statement_block=StatementBlock
-                              'end'
+                              EndT
                             ;
 
 Parameter                   : _type=TypeSpec id=Id default=DefaultParamValue?
@@ -109,7 +109,7 @@ SelectionStatement          : 'if' condition=Expression HeaderColon
                                 if_statement_block=StatementBlock
                                 elseif_clause=ElseIfClause*
                                 else_clause=ElseClause?
-                              'end'
+                              EndT
                             ;
 
 ElseClause                  : 'else' HeaderColon
@@ -126,7 +126,7 @@ IterationStatement          : ForIterationStatement
 
 ForIterationStatement       : 'for' header=ForIterationHeader HeaderColon
                                 body=ForIterationBody
-                              'end'
+                              EndT
                             ;
 
 ForIterationHeader          : idx=Id '=' iterator_expression=IteratorExpression
@@ -142,7 +142,7 @@ IteratorExpression          : Expression
 
 WhileIterationStatement     : 'while' condition=Expression HeaderColon
                                 statement_block=StatementBlock
-                              'end'
+                              EndT
                             ;
 
 JumpStatement               : BreakStatement
@@ -164,25 +164,25 @@ ReturnValue                 : 'return' ret_val=Expression;
 ExistsStatement             : 'exists' guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
-                              'end'
+                              EndT
                             ;
 
 NotExistsStatement          : 'not' 'exists' guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
-                              'end'
+                              EndT
                             ;
 
 FeedthroughStatement        : 'feedthrough' guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
-                              'end'
+                              EndT
                             ;
 
 NotFeedthroughStatement     : 'not' 'feedthrough' guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
-                              'end'
+                              EndT
                             ;
 
 AssignmentStatement         : VarAssignmentStatement
@@ -438,7 +438,7 @@ Func: 'fn';
 OParen: '(';
 CParen: ')';
 Colon: ':';
-EndT: 'end';
+EndT: /end/;
 Assign: '=';
 IntT: 'int';
 UintT: 'uint';

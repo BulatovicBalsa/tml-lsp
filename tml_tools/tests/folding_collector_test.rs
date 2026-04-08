@@ -25,7 +25,7 @@ fn test_function_fold() {
 #[test]
 fn test_function_no_fold_end_inline() {
     // 'end' is not on its own line — no fold
-    let src = "fn test(): x = 1 end\n";
+    let src = "fn test():\n    x = 1 end\n";
     let folds = collect_folds(src);
     assert!(folds.is_empty(), "Expected no folds, got {:?}", folds);
 }
@@ -52,8 +52,8 @@ fn test_if_fold() {
 fn test_if_else_fold() {
     let src = "fn test():\n    if x > 0:\n        y = 1\n    else:\n        y = 0\n    end\nend\n";
     let folds = collect_folds(src);
-    assert!(folds.contains(&(0, 6)), "Expected fold for fn");
-    assert!(folds.contains(&(1, 5)), "Expected fold for if");
+    assert!(folds.contains(&(0, 6)), "Expected fold for fn (0, 6), got {:?}", folds);
+    assert!(folds.contains(&(1, 5)), "Expected fold for if (1, 5), got {:?}", folds);
 }
 
 #[test]
