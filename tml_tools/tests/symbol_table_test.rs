@@ -93,7 +93,7 @@ fn test_tensor_simple() {
 }
 
 #[test]
-fn test_tensor_multidim() {
+fn test_tensor_multidimensional() {
     let (table, errors) = build_table("tensor<int, 2, 2, 2> a = [1, 2; 3, 4 | 1, 2; 3, 4]");
     assert!(errors.is_empty());
     let sym = get_symbol(&table, "a", &Scope::Global);

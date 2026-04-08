@@ -152,10 +152,10 @@ impl Format for TensorLiteral {
         let is_2d = !is_3d && cube.elements[0].elements.len() > 1;
 
         if is_3d {
-            // uvek višelinijski
+            // always multiline
             format_cube_multiline(cube, indent)
         } else if is_2d {
-            // jednolinijski ako stane u 80 chars, inače višelinijski
+            // inline if it fits, otherwise multiline
             let single = format!("[{}]", format_cube_inline(cube));
             if indent * 4 + single.len() <= MAX_LINE_WIDTH {
                 single
@@ -163,7 +163,7 @@ impl Format for TensorLiteral {
                 format_cube_multiline(cube, indent)
             }
         } else {
-            // 1D — uvek jednolinijski
+            // 1D tensor, always inline
             format!("[{}]", format_cube_inline(cube))
         }
     }
@@ -211,7 +211,7 @@ fn format_cube_multiline(cube: &Cube, indent: usize) -> String {
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    // separatori: ';' za kraj reda, '|' za kraj matrice
+                    // separators: ';' for the line end, '|' for the matrix end
                     let sep = if ri < last_row {
                         ";"
                     } else if mi < last_matrix {

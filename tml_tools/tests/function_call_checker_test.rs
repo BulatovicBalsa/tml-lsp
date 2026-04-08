@@ -132,13 +132,13 @@ fn test_builtin_min_wrong_arg_count() {
 
 #[test]
 fn test_builtin_setbit_ok() {
-    let errors = check("y = setbit(x, 3, 1)"); // tačno 3
+    let errors = check("y = setbit(x, 3, 1)"); // exactly 3
     assert!(errors.is_empty());
 }
 
 #[test]
 fn test_builtin_setbit_wrong_count() {
-    let errors = check("y = setbit(x, 3)"); // fali jedan
+    let errors = check("y = setbit(x, 3)"); // one is missing
     assert!(has_arg_count_error(&errors, "setbit", 3, 2));
 }
 

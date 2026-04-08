@@ -95,9 +95,7 @@ impl<'a> FoldingCollector<'a> {
 // ───────────────────────── AstVisitor impl ─────────────────────────
 
 impl<'a> AstVisitor for FoldingCollector<'a> {
-    fn visit_expression(&mut self, _expr: &Expression, _scope: &crate::symbol_table::Scope) {
-        // Expressions ne generisu folding range-ove
-    }
+    fn visit_expression(&mut self, _expr: &Expression, _scope: &crate::symbol_table::Scope) {}
 
     fn visit_statement(&mut self, stmt: &Statement, scope: &crate::symbol_table::Scope) {
 
@@ -110,7 +108,7 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
             Statement::NotFeedthroughStatement(e) => handle_stmt!(self, scope, e),
             Statement::MacroFor(m) => self.visit_for(&m.body, scope),
             Statement::MacroIf(m)  => self.visit_selection(&m.body, scope),
-            // Ostali statement-i ne generisu folding
+            // Other statements don't create folding ranges
             _ => {}
         }
     }
@@ -121,7 +119,6 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
         self.try_add_range(start_line, &s.end_t.position);
         self.visit_statement_block(&s.if_statement_block, scope);
 
-        // elseif i else blokovi
         if let Some(elseifs) = &s.elseif_clause {
             for clause in elseifs {
                 self.visit_statement_block(&clause.elseif_statement_block, scope);

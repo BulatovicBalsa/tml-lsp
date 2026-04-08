@@ -10,8 +10,8 @@ fn parse_and_format(src: &str) -> String {
 
 // ───────────────────────── Helper ─────────────────────────
 
-/// Normalizuje whitespace za poredjenje — uklanja
-/// visak razmaka i prazne linije da test ne bude krhak.
+/// Normalize string by trimming lines and removing empty lines, 
+/// to make it easier to compare formatted output
 fn normalize(s: &str) -> String {
     s.lines()
         .map(|l| l.trim())
@@ -430,7 +430,7 @@ fn test_1d_with_tensor_type() {
     );
 }
 
-// ───────────────────────── 2D — jednolinijski ako stane ─────────────────────────
+// ───────────────────────── 2D — inline if it fits ─────────────────────────
 
 #[test]
 fn test_2d_simple_inline() {
@@ -450,7 +450,7 @@ fn test_2d_extra_whitespace_inline() {
 
 #[test]
 fn test_2d_multiline_input_becomes_inline() {
-    // Višelinijski input, ali rezultat je jednolinijski jer stane u 80
+    // Multiline input, but result is inline because of 80 chars limit
     assert_formats_to(
         r#"b = [1, 2, 3;
               1, 2, 3]"#,
@@ -460,7 +460,7 @@ fn test_2d_multiline_input_becomes_inline() {
 
 #[test]
 fn test_2d_long_becomes_multiline() {
-    // Dugački identifikatori — ne stane u 80 chars, mora višelinijski
+    // Long id — cannot fit in one line, must be multiline
     assert_formats_to(
     "b = [very_long_variable_name_a, very_long_variable_name_b; very_long_variable_name_c, very_long_variable_name_d]",
 r#"b = [
@@ -478,7 +478,7 @@ fn test_2d_with_tensor_type() {
     );
 }
 
-// ───────────────────────── 3D — uvek višelinijski ─────────────────────────
+// ───────────────────────── 3D — always multiline ─────────────────────────
 
 #[test]
 fn test_3d_simple() {
@@ -523,11 +523,11 @@ fn test_3d_with_tensor_type() {
     );
 }
 
-// ───────────────────────── Indentacija unutar funkcije ─────────────────────────
+// ───────────────────────── Indent inside function ─────────────────────────
 
 #[test]
 fn test_3d_inside_function_indented() {
-    // Unutar funkcije indent=1, closing bracket mora biti na indent=1
+    // Inside: indent=1, closing bracket must be indented as well
     assert_formats_to(
         r#"
             fn test():
@@ -619,7 +619,7 @@ fn test_arr_of_expressions() {
 
 #[test]
 fn test_broadcast_scalar() {
-    // tensor<int, 3> a = 1 — nije tensor literal, samo scalar rvalue
+    // tensor<int, 3> a = 1 — not a tensor literal, just a scalar rvalue
     assert_formats_to(
         "tensor<int, 3> a = 1",
         "tensor<int, 3> a = 1",
