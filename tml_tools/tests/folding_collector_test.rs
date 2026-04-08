@@ -23,11 +23,19 @@ fn test_function_fold() {
 }
 
 #[test]
-fn test_function_no_fold_end_inline() {
-    // 'end' is not on its own line — no fold
+fn test_function_fold_end_inline_no_comment() {
+    // 'end' is not on its own line — still folds
     let src = "fn test():\n    x = 1 end\n";
     let folds = collect_folds(src);
-    assert!(folds.is_empty(), "Expected no folds, got {:?}", folds);
+    assert!(folds.contains(&(0, 1)), "Expected fold (0, 1) with inline end, got {:?}", folds);
+}
+
+#[test]
+fn test_function_fold_end_inline_with_comment() {
+    // 'end' is not on its own line and has a comment — still folds
+    let src = "fn test():\n    x = 1 end # End of function\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold (0, 1) with inline end and comment, got {:?}", folds);
 }
 
 #[test]

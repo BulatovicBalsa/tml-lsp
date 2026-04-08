@@ -60,8 +60,8 @@ impl<'a> FoldingCollector<'a> {
         self.ranges
     }
 
-    /// Proverava da li linija sadrzi samo whitespace i 'end'
-    fn is_end_on_own_line(&self, line: usize) -> bool {
+    /// Check if line contains only whitespace chars and 'end'
+    fn _is_end_on_own_line(&self, line: usize) -> bool {
         self.text
             .lines()
             .nth(line)
@@ -74,7 +74,7 @@ impl<'a> FoldingCollector<'a> {
             .map(|lc| lc.line.saturating_sub(1))
             .unwrap_or(0);
 
-        if self.is_end_on_own_line(end_line) && start_line < end_line as u32 {
+        if start_line < end_line as u32 {
             self.ranges.push(TmlFoldingRange {
                 start_line,
                 end_line: end_line as u32,
