@@ -3,5 +3,8 @@ name = "tml_parser"
 version = "0.1.0"
 edition = "2024"
 
+[dev-dependencies]
+rstest = "0.26.1"
+
 [dependencies]
 rustemo = "0.9.1"
