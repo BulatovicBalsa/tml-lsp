@@ -193,6 +193,7 @@ pub fn macro_if_c1(_ctx: &Ctx, body: SelectionStatement) -> MacroIf {
 }
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
+    pub func_t: FuncT,
     pub id: Id,
     pub parameters_list: Parameter0,
     pub ret_type: TypeSpecOpt,
@@ -202,6 +203,7 @@ pub struct FunctionDefinition {
 }
 pub fn function_definition_c1(
     _ctx: &Ctx,
+    func_t: FuncT,
     id: Id,
     parameters_list: Parameter0,
     ret_type: TypeSpecOpt,
@@ -210,6 +212,7 @@ pub fn function_definition_c1(
     end_t: EndT,
 ) -> FunctionDefinition {
     FunctionDefinition {
+        func_t,
         id,
         parameters_list,
         ret_type,
@@ -2396,4 +2399,8 @@ pub fn end_t(_ctx: &Ctx, token: Token) -> EndT {
         value: token.value.into(),
         position: _ctx.position(),
     }
+}
+pub type FuncT = String;
+pub fn func_t(_ctx: &Ctx, token: Token) -> FuncT {
+    token.value.into()
 }

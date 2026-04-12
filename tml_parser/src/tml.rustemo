@@ -20,7 +20,7 @@ MacroFor                    : 'macro' body=ForIterationStatement
 MacroIf                     : 'macro' body=SelectionStatement
                             ;
 
-FunctionDefinition          : 'fn' id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? HeaderColon
+FunctionDefinition          : FuncT id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? HeaderColon
                                statement_block=StatementBlock
                               EndT
                             ;
@@ -434,7 +434,7 @@ terminals
 
 SquareBrackets: '[]';
 Question: '?';
-Func: 'fn';
+FuncT: /fn/;
 OParen: '(';
 CParen: ')';
 Colon: ':';
