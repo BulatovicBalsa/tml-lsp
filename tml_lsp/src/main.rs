@@ -2,8 +2,8 @@ use rustemo::Parser;
 use std::collections::HashMap;
 use tml_parser::tml::TmlParser;
 use tml_tools::folding_collector::{FoldingCollector, TmlFoldingRange};
-use tml_tools::hoverable_collector::{HoverableCollector, HoverableNode};
-use tml_tools::symbol_table::{SymbolTable, SymbolTableBuilder};
+use tml_tools::hoverable_collector::{HoverableCollector, HoverableKind, HoverableNode};
+use tml_tools::symbol_table::{Scope, SymbolTable, SymbolTableBuilder};
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -108,6 +108,7 @@ impl LanguageServer for Backend {
                 )),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -276,6 +277,66 @@ impl LanguageServer for Backend {
                     .log_message(MessageType::ERROR, format!("Formatting error: {:?}", e))
                     .await;
                 Ok(None)
+            }
+        }
+    }
+
+    // ── Definition ──
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri.clone();
+        let position = params.text_document_position_params.position;
+        let uri_str = uri.to_string();
+
+        let hoverable = self.hoverable.read().await;
+        let nodes = match hoverable.get(&uri_str) {
+            Some(n) => n,
+            None => return Ok(None),
+        };
+
+        // Find what the user clicked on
+        let node = match HoverableCollector::find_at(nodes, position.line, position.character) {
+            Some(n) => n,
+            None => return Ok(None),
+        };
+
+        // Determine what name and scope we are looking for
+        let (target_name, target_scope) = match &node.kind {
+            HoverableKind::VariableRef { name } => (name.clone(), Some(node.scope.clone())),
+            HoverableKind::FunctionCall { name } => (name.clone(), None),
+            // Already on a definition — nothing to jump to
+            HoverableKind::VariableDecl { .. } | HoverableKind::FunctionDef { .. } => {
+                return Ok(None)
+            }
+        };
+
+        // Find the declaration node
+        let decl_node = nodes.iter().find(|n| match &n.kind {
+            HoverableKind::VariableDecl { name, .. } => {
+                *name == target_name && match &target_scope {
+                    // Check current scope first, then global
+                    Some(scope) => &n.scope == scope || n.scope == Scope::Global,
+                    None => true,
+                }
+            }
+            HoverableKind::FunctionDef { name } => *name == target_name,
+            _ => false,
+        });
+
+        match decl_node {
+            None => Ok(None),
+            Some(decl) => {
+                let start = Position {
+                    line: decl.position.line as u32,
+                    character: decl.position.column as u32,
+                };
+                Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                    uri,
+                    range: Range { start, end: start },
+                })))
             }
         }
     }
