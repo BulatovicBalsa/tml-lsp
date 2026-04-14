@@ -30,6 +30,12 @@ fn has_named_arg_error(errors: &[CallError], fn_name: &str, arg_name: &str) -> b
     ))
 }
 
+fn has_entry_fn_error(errors: &[CallError], name: &str) -> bool {
+    errors.iter().any(|e| matches!(e,
+        CallError::EntryFunctionCall { name: n, .. } if n == name
+    ))
+}
+
 // ───────────────────────── Valid calls ─────────────────────────
 
 #[test]
@@ -233,4 +239,45 @@ fn test_call_in_for_range() {
 fn test_invalid_call_in_for_range() {
     let errors = check("fn test():\n    for i = 0:undefined_fn():\n        return\n    end\nend");
     assert!(has_undefined_fn(&errors, "undefined_fn"));
+}
+
+// ───────────────────────── Entry functions ─────────────────────────
+
+#[test]
+fn test_entry_function_call_from_user_code() {
+    let errors = check("fn test():\n    output_fnc()\nend");
+    assert!(has_entry_fn_error(&errors, "output_fnc"));
+}
+
+#[test]
+fn test_entry_function_call_init_fnc() {
+    let errors = check("fn test():\n    init_fnc()\nend");
+    assert!(has_entry_fn_error(&errors, "init_fnc"));
+}
+
+#[test]
+fn test_entry_function_call_update_fnc() {
+    let errors = check("fn test():\n    update_fnc()\nend");
+    assert!(has_entry_fn_error(&errors, "update_fnc"));
+}
+
+#[test]
+fn test_entry_function_call_from_global() {
+    let errors = check("output_fnc()");
+    assert!(has_entry_fn_error(&errors, "output_fnc"));
+}
+
+#[test]
+fn test_entry_function_definition_is_valid() {
+    // Defining entry functions is valid, only calling them is not
+    let errors = check("fn output_fnc():\n    x = 1\nend");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_entry_function_call_from_nested_function() {
+    let errors = check(
+        "fn helper():\n    output_fnc()\nend\nfn test():\n    helper()\nend"
+    );
+    assert!(has_entry_fn_error(&errors, "output_fnc"));
 }

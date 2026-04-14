@@ -1,10 +1,19 @@
 use tml_parser::tml_actions::*;
-use crate::symbol_table::{Scope, SymbolTable};
+use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
+use crate::type_inference::infer_type;
 use crate::visitor::AstVisitor;
+
+// ───────────────────────── Entry functions ─────────────────────────
+
+const ENTRY_FUNCTIONS: &[&str] = &["init_fnc", "output_fnc", "update_fnc"];
+
+pub fn is_entry_function(name: &str) -> bool {
+    ENTRY_FUNCTIONS.contains(&name)
+}
 
 // ───────────────────────── Built-ins ─────────────────────────
 
-struct BuiltinSignature {
+pub struct BuiltinSignature {
     name: &'static str,
     arg_count: usize,
 }
@@ -34,15 +43,57 @@ const BUILTINS: &[BuiltinSignature] = &[
     BuiltinSignature { name: "log",   arg_count: 1 },
     BuiltinSignature { name: "log10", arg_count: 1 },
     BuiltinSignature { name: "sqrt",  arg_count: 1 },
-    // 2 argumenta
+    // 2 arguments
     BuiltinSignature { name: "atan2",  arg_count: 2 },
     BuiltinSignature { name: "getbit", arg_count: 2 },
-    // 3 argumenta
+    // 3 arguments
     BuiltinSignature { name: "setbit", arg_count: 3 },
 ];
 
-fn lookup_builtin(name: &str) -> Option<&'static BuiltinSignature> {
+pub fn lookup_builtin(name: &str) -> Option<&'static BuiltinSignature> {
     BUILTINS.iter().find(|b| b.name == name)
+}
+
+/// Infers the return type of built-in function based on its arguments.
+/// Built-in functions are polymorphic — return type matches the input type.
+pub fn infer_builtin_return_type(
+    name: &str,
+    args: &[&Argument],
+    table: &SymbolTable,
+    scope: &Scope,
+) -> Option<SymbolType> {
+    let base = name.trim_end_matches('!');
+
+    match base {
+        // Math functions — return type matches argument type
+        "min" | "max" | "abs" | "sin" | "cos" | "tan"
+        | "asin" | "acos" | "atan" | "floor" | "ceil"
+        | "round" | "trunc" | "log" | "log10" | "sqrt" => {
+            let arg_expr = match args.first()? {
+                Argument::C1(a) => &a.value,
+                Argument::C2(a) => &a.value,
+            };
+            infer_type(arg_expr, table, scope)
+        }
+        // atan2 — promote both arguments
+        "atan2" => {
+            if args.len() < 2 { return None; }
+            let a1 = match args[0] {
+                Argument::C1(a) => infer_type(&a.value, table, scope),
+                Argument::C2(a) => infer_type(&a.value, table, scope),
+            }?;
+            let a2 = match args[1] {
+                Argument::C1(a) => infer_type(&a.value, table, scope),
+                Argument::C2(a) => infer_type(&a.value, table, scope),
+            }?;
+            Some(crate::type_inference::promote(&a1, &a2))
+        }
+        // Boolean reductions
+        "all" | "any" | "isnan" => Some(SymbolType::Simple(SimpleTypeKind::Bool)),
+        // Bit operations — always return uint
+        "getbit" | "setbit" => Some(SymbolType::Simple(SimpleTypeKind::Uint)),
+        _ => None,
+    }
 }
 
 // ───────────────────────── Errors ─────────────────────────
@@ -52,6 +103,7 @@ pub enum CallError {
     UndefinedFunction { name: String, scope: Scope },
     ArgumentCountMismatch { name: String, expected: usize, got: usize, scope: Scope },
     NamedArgumentNotAllowed { function_name: String, arg_name: String, scope: Scope },
+    EntryFunctionCall { name: String, scope: Scope },
 }
 
 impl std::fmt::Display for CallError {
@@ -73,6 +125,14 @@ impl std::fmt::Display for CallError {
                     arg_name, function_name
                 )
             }
+            CallError::EntryFunctionCall { name, scope } => match scope {
+                Scope::Global => write!(f, "Entry function '{}' cannot be called from user code", name),
+                Scope::Function(fn_name) => write!(
+                    f,
+                    "Entry function '{}' cannot be called from '{}'",
+                    name, fn_name
+                ),
+            },
         }
     }
 }
@@ -121,21 +181,19 @@ impl<'a> FunctionCallChecker<'a> {
 // ───────────────────────── AstVisitor impl ─────────────────────────
 
 impl<'a> AstVisitor for FunctionCallChecker<'a> {
-
-    // Override visit_function_call to perform checks
     fn visit_function_call(&mut self, call: &FunctionCall, scope: &Scope) {
-        let name = &call.id;
+        let name = &call.id.value;
 
         let args: Vec<&Argument> = match &call.arguments_list {
             None => vec![],
             Some(args) => args.iter().collect(),
         };
 
-        // Check for named arguments (C1) and report error if found
+        // Check named arguments and visit argument expressions
         for arg in &args {
             if let Argument::C1(a) = arg {
                 self.errors.push(CallError::NamedArgumentNotAllowed {
-                    function_name: name.value.clone(),
+                    function_name: name.clone(),
                     arg_name: a.id.value.clone(),
                     scope: scope.clone(),
                 });
@@ -147,12 +205,21 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
             self.visit_expression(val, scope);
         }
 
-        // Check built-in
-        if let Some(builtin) = lookup_builtin(name.value.as_str()) {
+        // Entry functions cannot be called from user code
+        if is_entry_function(name) {
+            self.errors.push(CallError::EntryFunctionCall {
+                name: name.clone(),
+                scope: scope.clone(),
+            });
+            return;
+        }
+
+        // Check built-in argument count
+        if let Some(builtin) = lookup_builtin(name) {
             let got = args.len();
             if builtin.arg_count != got {
                 self.errors.push(CallError::ArgumentCountMismatch {
-                    name: name.value.clone(),
+                    name: name.clone(),
                     expected: builtin.arg_count,
                     got,
                     scope: scope.clone(),
@@ -161,11 +228,11 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
             return;
         }
 
-        // Check user-defined functions
-        match self.table.lookup_function(name.value.as_str()) {
+        // Check user-defined function
+        match self.table.lookup_function(name) {
             None => {
                 self.errors.push(CallError::UndefinedFunction {
-                    name: name.value.clone(),
+                    name: name.clone(),
                     scope: scope.clone(),
                 });
             }
@@ -174,7 +241,7 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
                 let got = args.len();
                 if expected != got {
                     self.errors.push(CallError::ArgumentCountMismatch {
-                        name: name.value.clone(),
+                        name: name.clone(),
                         expected,
                         got,
                         scope: scope.clone(),

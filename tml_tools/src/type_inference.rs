@@ -1,4 +1,5 @@
 use tml_parser::tml_actions::*;
+use crate::function_call_checker::lookup_builtin;
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
 
 // ───────────────────────── Type promotion ─────────────────────────
@@ -79,7 +80,7 @@ fn infer_postfix(e: &PostfixExpression, table: &SymbolTable, scope: &Scope) -> O
         PostfixExpression::Constant(c)          => infer_constant(c),
         PostfixExpression::RValue(r)            => infer_rvalue(r, table, scope),
         PostfixExpression::TensorExpression(t)  => infer_tensor_index(t, table, scope),
-        PostfixExpression::FunctionCall(f)      => infer_function_call(f, table),
+        PostfixExpression::FunctionCall(f)      => infer_function_call(f, table, scope),
         PostfixExpression::ExprInParenthesis(e) => infer_type(&e.expr, table, scope),
         PostfixExpression::TransposeExpression(t) => {
             // Transpose preserves tensor type
@@ -125,8 +126,21 @@ fn infer_tensor_index(t: &TensorExpression, table: &SymbolTable, scope: &Scope) 
 
 // ───────────────────────── Function call ─────────────────────────
 
-fn infer_function_call(f: &FunctionCall, table: &SymbolTable) -> Option<SymbolType> {
-    let func = table.lookup_function(&f.id.value)?;
+fn infer_function_call(f: &FunctionCall, table: &SymbolTable, scope: &Scope) -> Option<SymbolType> {
+    let name = &f.id.value;
+
+    // Check built-ins first
+    let args: Vec<&Argument> = match &f.arguments_list {
+        None => vec![],
+        Some(args) => args.iter().collect(),
+    };
+
+    if lookup_builtin(name).is_some() {
+        return crate::function_call_checker::infer_builtin_return_type(name, &args, table, scope);
+    }
+
+    // User-defined function
+    let func = table.lookup_function(name)?;
     func.ret_type.clone()
 }
 
