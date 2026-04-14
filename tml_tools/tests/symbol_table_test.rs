@@ -227,3 +227,171 @@ fn test_symbols_in_scope() {
     assert_eq!(func.len(), 1);
     assert_eq!(func[0].name, "z");
 }
+
+// ───────────────────────── Type inference from constants ─────────────────────────
+
+#[test]
+fn test_infer_int_from_assignment() {
+    let (table, errors) = build_table("a = 5");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_infer_real_from_assignment() {
+    let (table, errors) = build_table("b = 6.2");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "b", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+#[test]
+fn test_infer_bool_from_assignment() {
+    let (table, errors) = build_table("c = true");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "c", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Bool));
+}
+
+#[test]
+fn test_infer_str_from_assignment() {
+    let (table, errors) = build_table(r#"d = "hello""#);
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "d", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Str));
+}
+
+#[test]
+fn test_infer_uint_from_assignment() {
+    let (table, errors) = build_table("e = 5u");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "e", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Uint));
+}
+
+// ───────────────────────── Type inference from expressions ─────────────────────────
+
+#[test]
+fn test_infer_type_from_unary_minus() {
+    let (table, errors) = build_table("a = -5");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_infer_bool_from_logical_expression() {
+    let (table, errors) = build_table("int x = 1\na = x > 0");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Bool));
+}
+
+#[test]
+fn test_infer_bool_from_not() {
+    let (table, errors) = build_table("bool x = true\na = not x");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Bool));
+}
+
+// ───────────────────────── Type promotion ─────────────────────────
+
+#[test]
+fn test_promote_int_plus_real() {
+    let (table, errors) = build_table("int x = 1\nreal y = 2.0\na = x + y");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+#[test]
+fn test_promote_uint_plus_int() {
+    let (table, errors) = build_table("uint x = 1u\nint y = 2\na = x + y");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_promote_uint_plus_uint() {
+    let (table, errors) = build_table("uint x = 1u\nuint y = 2u\na = x + y");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Uint));
+}
+
+#[test]
+fn test_promote_int_plus_real_chain() {
+    let (table, errors) = build_table("int x = 1\nint y = 2\nreal z = 3.0\na = x + y + z");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+// ───────────────────────── Type inference from variable reference ─────────────────────────
+
+#[test]
+fn test_infer_type_from_variable() {
+    let (table, errors) = build_table("int x = 5\na = x");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_infer_type_from_real_variable() {
+    let (table, errors) = build_table("real x = 5.0\na = x");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+#[test]
+fn test_infer_type_chain() {
+    let (table, errors) = build_table("b = 5\na = b");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+// ───────────────────────── Type inference in function scope ─────────────────────────
+
+#[test]
+fn test_infer_type_in_function() {
+    let (table, errors) = build_table("fn test():\n    a = 5\nend");
+    assert!(errors.is_empty());
+    let scope = Scope::Function("test".to_string());
+    let sym = get_symbol(&table, "a", &scope);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_infer_type_from_param_in_function() {
+    let (table, errors) = build_table("fn test(real x):\n    a = x\nend");
+    assert!(errors.is_empty());
+    let scope = Scope::Function("test".to_string());
+    let sym = get_symbol(&table, "a", &scope);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+#[test]
+fn test_infer_type_from_global_in_function() {
+    let (table, errors) = build_table("real g = 1.0\nfn test():\n    a = g\nend");
+    assert!(errors.is_empty());
+    let scope = Scope::Function("test".to_string());
+    let sym = get_symbol(&table, "a", &scope);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+// ───────────────────────── No duplicate on reassignment ─────────────────────────
+
+#[test]
+fn test_no_duplicate_on_reassignment() {
+    // Reassigning an already declared variable should not create a duplicate
+    let (table, errors) = build_table("int x = 5\nx = 10");
+    assert!(errors.is_empty());
+    let count = table.symbols.iter().filter(|s| s.name == "x").count();
+    assert_eq!(count, 1, "Expected only one symbol 'x', got {}", count);
+}

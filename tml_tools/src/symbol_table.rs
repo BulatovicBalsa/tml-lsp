@@ -1,5 +1,5 @@
 use tml_parser::tml_actions::*;
-
+use crate::type_inference::infer_type;
 // ───────────────────────── Types ─────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,7 +90,7 @@ impl SymbolTableBuilder {
         match decl {
             ExternalDeclaration::FunctionDefinition(f)     => self.visit_function(f),
             ExternalDeclaration::DeclarationStatement(d)   => self.visit_declaration(d, Scope::Global),
-            ExternalDeclaration::AssignmentStatement(_)    => {} // no new symbols
+            ExternalDeclaration::AssignmentStatement(a)    => self.visit_assignment(a, &Scope::Global),
             ExternalDeclaration::IoDeclarationStatement(_) => {},
             ExternalDeclaration::IoWriteStatement(_)       => {}
             ExternalDeclaration::MacroFor(m)               => self.visit_for(&m.body, Scope::Global),
@@ -148,7 +148,7 @@ impl SymbolTableBuilder {
             Statement::NotFeedthroughStatement(e) => self.visit_statement_block(&e.statement_block, scope),
             Statement::MacroFor(m)               => self.visit_for(&m.body, scope.clone()),
             Statement::MacroIf(m)                => self.visit_selection(&m.body, scope.clone()),
-            Statement::AssignmentStatement(_)    => {},
+            Statement::AssignmentStatement(a)    => self.visit_assignment(a, scope),
             Statement::JumpStatement(_)          => {},
             Statement::FunctionCallStatement(_)  => {},
             Statement::IoWriteStatement(_)       => {},
@@ -162,6 +162,23 @@ impl SymbolTableBuilder {
         let name = dot_access_to_string(&d.id);
         let ty = convert_type_spec(&d._type);
         self.add_symbol(&name, ty, scope);
+    }
+
+    // ── Assignment ──
+
+    fn visit_assignment(&mut self, stmt: &AssignmentStatement, scope: &Scope) {
+        match stmt {
+            AssignmentStatement::VarAssignmentStatement(v) => {
+                let name = dot_access_to_string(&v.var);
+                // Add to symbol table only if not already declared
+                if self.table.lookup(&name, scope).is_none() {
+                    if let Some(ty) = infer_type(&v.rvalue, &self.table, scope) {
+                        self.add_symbol(&name, ty, scope.clone());
+                    }
+                }
+            }
+            AssignmentStatement::TensorAssignmentStatement(_) => {}
+        }
     }
 
     // ── Selection ──
