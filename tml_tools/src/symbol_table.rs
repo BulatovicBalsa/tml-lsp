@@ -78,10 +78,32 @@ impl SymbolTableBuilder {
     }
 
     pub fn build(mut self, unit: &TranslationUnit) -> (SymbolTable, Vec<SymbolError>) {
+        self.prescan_functions(unit);
+
         for decl in &unit.ext_decls {
             self.visit_external_declaration(decl);
         }
         (self.table, self.errors)
+    }
+
+    fn prescan_functions(&mut self, unit: &TranslationUnit) {
+        for decl in &unit.ext_decls {
+            if let ExternalDeclaration::FunctionDefinition(f) = decl {
+                let params: Vec<(SymbolType, String)> = match &f.parameters_list {
+                    None => vec![],
+                    Some(params) => params
+                        .iter()
+                        .map(|p| (convert_type_spec(&p._type), p.id.value.clone()))
+                        .collect(),
+                };
+                let ret_type = f.ret_type.as_ref().map(convert_type_spec);
+                self.table.functions.push(FunctionSignature {
+                    name: f.id.value.clone(),
+                    params,
+                    ret_type,
+                });
+            }
+        }
     }
 
     // ── External declarations ──
@@ -103,26 +125,12 @@ impl SymbolTableBuilder {
     fn visit_function(&mut self, f: &FunctionDefinition) {
         let scope = Scope::Function(f.id.value.clone());
 
-        let params: Vec<(SymbolType, String)> = match &f.parameters_list {
-            None => vec![],
-            Some(params) => params
-                .iter()
-                .map(|p| (convert_type_spec(&p._type), p.id.value.clone()))
-                .collect(),
-        };
-
-        for (ty, name) in &params {
-            self.add_symbol(&name, ty.clone(), scope.clone());
+        // Add params as symbols
+        if let Some(params) = &f.parameters_list {
+            for p in params {
+                self.add_symbol(&p.id.value, convert_type_spec(&p._type), scope.clone());
+            }
         }
-
-        let ret_type = f.ret_type.as_ref().map(convert_type_spec);
-
-        // Register function
-        self.table.functions.push(FunctionSignature {
-            name: f.id.value.clone(),
-            params,
-            ret_type,
-        });
 
         // Function body
         self.visit_statement_block(&f.statement_block, &scope);

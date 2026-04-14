@@ -395,3 +395,14 @@ fn test_no_duplicate_on_reassignment() {
     let count = table.symbols.iter().filter(|s| s.name == "x").count();
     assert_eq!(count, 1, "Expected only one symbol 'x', got {}", count);
 }
+
+#[test]
+fn test_function_forward_reference() {
+    let (table, errors) = build_table(
+        "fn main():\n    x = foo()\nend\nfn foo() int:\n    return 5\nend"
+    );
+    assert!(errors.is_empty());
+    let scope = Scope::Function("main".to_string());
+    let sym = get_symbol(&table, "x", &scope);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
