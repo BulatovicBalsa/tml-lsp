@@ -8,7 +8,10 @@ use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-
+use tml_tools::diagnostics::DiagnosticsRunner;
+use tml_tools::function_call_checker::FunctionCallDiagnosticSource;
+use tml_tools::undefined_variable_checker::UndefinedVariableDiagnosticSource;
+use tml_tools::diagnostics::DiagnosticSeverity as ParserDiagnosticSeverity;
 // ───────────────────────── Backend ─────────────────────────
 
 struct Backend {
@@ -41,13 +44,18 @@ impl Backend {
                 let (table, sym_errors) = SymbolTableBuilder::new().build(&ast);
                 let nodes = HoverableCollector::new().collect(&ast);
                 let folds = FoldingCollector::new(&normalized).collect(&ast);
-                (table, sym_errors, nodes, folds)
+
+                let runner = DiagnosticsRunner::new()
+                    .add_source(UndefinedVariableDiagnosticSource)
+                    .add_source(FunctionCallDiagnosticSource);
+                let diagnostics = runner.run(&ast, &table);
+                (table, sym_errors, nodes, folds, diagnostics)
             })
         })
             .await;
 
         match parse_result {
-            Ok(Ok((table, sym_errors, nodes, folds))) => {
+            Ok(Ok((table, sym_errors, nodes, folds, diagnostics))) => {
                 self.client
                     .log_message(
                         MessageType::INFO,
@@ -78,11 +86,33 @@ impl Backend {
                         .log_message(MessageType::INFO, format!("Hoverable variables:\n{}", hov_str))
                         .await;
                 }
+
+                let lsp_diagnostics: Vec<Diagnostic> = diagnostics
+                    .iter()
+                    .map(|d| {
+                        let severity = match d.severity {
+                            ParserDiagnosticSeverity::Error   => DiagnosticSeverity::ERROR,
+                            ParserDiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
+                            ParserDiagnosticSeverity::Hint    => DiagnosticSeverity::HINT,
+                        };
+                        let start = Position { line: d.line, character: d.column };
+                        let end = Position { line: d.line, character: d.column + d.length as u32 };
+                        Diagnostic {
+                            range: Range { start, end },
+                            severity: Some(severity),
+                            message: d.message.clone(),
+                            ..Default::default()
+                        }
+                    })
+                    .collect();
+
+                self.client.publish_diagnostics(uri.clone(), lsp_diagnostics, None).await;
             }
             Ok(Err(e)) => {
                 self.client
                     .log_message(MessageType::ERROR, format!("Parse error: {:?}", e))
                     .await;
+                self.client.publish_diagnostics(uri.clone(), vec![], None).await;
                 self.hoverable.write().await.remove(&key);
                 self.folding_ranges.write().await.remove(&key);
             }
@@ -146,6 +176,7 @@ impl LanguageServer for Backend {
         self.hoverable.write().await.remove(&key);
         self.symbol_tables.write().await.remove(&key);
         self.folding_ranges.write().await.remove(&key);
+        self.client.publish_diagnostics(params.text_document.uri, vec![], None).await;
     }
 
     // ── Goto definition ──

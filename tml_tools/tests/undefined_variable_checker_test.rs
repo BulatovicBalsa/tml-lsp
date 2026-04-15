@@ -18,7 +18,7 @@ fn has_undefined(errors: &[CheckError], name: &str) -> bool {
 
 fn has_redeclaration(errors: &[CheckError], name: &str) -> bool {
     errors.iter().any(|e| matches!(e,
-        CheckError::RedeclaredNamespace { name: n } if n == name
+        CheckError::RedeclaredNamespace { name: n, .. } if n == name
     ))
 }
 

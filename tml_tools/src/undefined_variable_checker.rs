@@ -1,4 +1,6 @@
 use tml_parser::tml_actions::*;
+use crate::diagnostics::{Diagnostic, DiagnosticSource};
+use crate::position::SourcePosition;
 use crate::symbol_table::{Scope, SymbolTable, dot_access_to_string};
 use crate::visitor::AstVisitor;
 
@@ -12,22 +14,38 @@ fn is_namespace_root(name: &str) -> bool {
 
 #[derive(Debug, Clone)]
 pub enum CheckError {
-    UndefinedVariable { name: String, scope: Scope },
-    RedeclaredNamespace { name: String },
+    UndefinedVariable { name: String, scope: Scope, position: SourcePosition },
+    RedeclaredNamespace { name: String, position: SourcePosition },
 }
 
 impl std::fmt::Display for CheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CheckError::UndefinedVariable { name, scope } => match scope {
+            CheckError::UndefinedVariable { name, scope, .. } => match scope {
                 Scope::Global => write!(f, "Undefined variable '{}'", name),
                 Scope::Function(fn_name) => {
                     write!(f, "Undefined variable '{}' in function '{}'", name, fn_name)
                 }
             },
-            CheckError::RedeclaredNamespace { name } => {
+            CheckError::RedeclaredNamespace { name, .. } => {
                 write!(f, "Cannot redeclare reserved namespace variable '{}'", name)
             }
+        }
+    }
+}
+
+impl CheckError {
+    pub fn position(&self) -> &SourcePosition {
+        match self {
+            CheckError::UndefinedVariable { position, .. } => position,
+            CheckError::RedeclaredNamespace { position, .. } => position,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            CheckError::UndefinedVariable { name, .. } => name,
+            CheckError::RedeclaredNamespace { name, .. } => name,
         }
     }
 }
@@ -74,7 +92,12 @@ impl<'a> UndefinedVariableChecker<'a> {
     }
 
     fn check_rvalue(&mut self, dot: &DotAccessExpression, scope: &Scope) {
-        let root = dot.names.first().map(|s| s.value.as_str()).unwrap_or("");
+        let first_id = match dot.names.first() {
+            Some(id) => id,
+            None => return,
+        };
+        let root = first_id.value.as_str();
+
         if is_namespace_root(root) {
             return;
         }
@@ -82,17 +105,42 @@ impl<'a> UndefinedVariableChecker<'a> {
             self.errors.push(CheckError::UndefinedVariable {
                 name: root.to_string(),
                 scope: scope.clone(),
+                position: SourcePosition::from_rustemo(&first_id.position),
             });
         }
     }
 
     fn check_namespace_redeclaration(&mut self, dot: &DotAccessExpression) {
-        let root = dot.names.first().map(|s| s.value.as_str()).unwrap_or("");
+        let first_id = match dot.names.first() {
+            Some(id) => id,
+            None => return,
+        };
+        let root = first_id.value.as_str();
         if is_namespace_root(root) {
             self.errors.push(CheckError::RedeclaredNamespace {
                 name: dot_access_to_string(dot),
+                position: SourcePosition::from_rustemo(&first_id.position),
             });
         }
+    }
+}
+
+// ───────────────────────── DiagnosticSource impl ─────────────────────────
+
+pub struct UndefinedVariableDiagnosticSource;
+
+impl DiagnosticSource for UndefinedVariableDiagnosticSource {
+    fn diagnostics(&self, ast: &TranslationUnit, table: &SymbolTable) -> Vec<Diagnostic> {
+        UndefinedVariableChecker::new(table)
+            .check(ast)
+            .into_iter()
+            .map(|e| Diagnostic::error(
+                e.to_string(),
+                e.position().line as u32,
+                e.position().column as u32,
+                e.name().len(),
+            ))
+            .collect()
     }
 }
 
@@ -147,7 +195,6 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
         }
     }
 
-    // Override visit_postfix to check rvalues
     fn visit_postfix(&mut self, e: &PostfixExpression, scope: &Scope) {
         match e {
             PostfixExpression::RValue(r) => self.check_rvalue(&r._ref, scope),

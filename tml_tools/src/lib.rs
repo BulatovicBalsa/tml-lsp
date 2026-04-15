@@ -7,3 +7,4 @@ pub mod folding_collector;
 pub mod type_inference;
 mod visitor;
 mod position;
+pub mod diagnostics;
