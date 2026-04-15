@@ -406,3 +406,42 @@ fn test_function_forward_reference() {
     let sym = get_symbol(&table, "x", &scope);
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
+
+// ───────────────────────── Tensor indexing type inference ─────────────────────────
+
+#[test]
+fn test_infer_type_from_tensor_index() {
+    let (table, errors) = build_table(
+        "tensor<int, 3> buf = [1, 2, 3]\nfn test():\n    a = buf[0]\nend"
+    );
+    assert!(errors.is_empty());
+    let scope = Scope::Function("test".to_string());
+    let sym = get_symbol(&table, "a", &scope);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_infer_type_from_nested_tensor_index() {
+    let (table, errors) = build_table(
+        "tensor<tensor<int, 2>, 3> buf = [[1, 2], [3, 4], [5, 6]]\nfn test():\n    a = buf[0]\nend"
+    );
+    assert!(errors.is_empty());
+    let scope = Scope::Function("test".to_string());
+    let sym = get_symbol(&table, "a", &scope);
+    assert_eq!(
+        sym.ty,
+        SymbolType::Tensor(Box::new(SymbolType::Simple(SimpleTypeKind::Int)), vec!["2".to_string()])
+    );
+}
+
+#[test]
+fn test_infer_type_from_double_tensor_index() {
+    // buf[i][j] → int
+    let (table, errors) = build_table(
+        "tensor<tensor<int, 2>, 3> buf = [[1, 2], [3, 4], [5, 6]]\nfn test():\n    a = buf[0][1]\nend"
+    );
+    assert!(errors.is_empty());
+    let scope = Scope::Function("test".to_string());
+    let sym = get_symbol(&table, "a", &scope);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
