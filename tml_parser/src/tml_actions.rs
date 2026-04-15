@@ -398,14 +398,14 @@ pub fn simple_type_spec_char_t(_ctx: &Ctx) -> SimpleTypeSpec {
 }
 #[derive(Debug, Clone)]
 pub enum IoDirection {
-    In,
-    Out,
+    InT(InT),
+    OutT(OutT),
 }
-pub fn io_direction_in(_ctx: &Ctx) -> IoDirection {
-    IoDirection::In
+pub fn io_direction_in_t(_ctx: &Ctx, in_t: InT) -> IoDirection {
+    IoDirection::InT(in_t)
 }
-pub fn io_direction_out(_ctx: &Ctx) -> IoDirection {
-    IoDirection::Out
+pub fn io_direction_out_t(_ctx: &Ctx, out_t: OutT) -> IoDirection {
+    IoDirection::OutT(out_t)
 }
 #[derive(Debug, Clone)]
 pub struct TensorConstructor {
@@ -2402,5 +2402,13 @@ pub fn end_t(_ctx: &Ctx, token: Token) -> EndT {
 }
 pub type FuncT = String;
 pub fn func_t(_ctx: &Ctx, token: Token) -> FuncT {
+    token.value.into()
+}
+pub type InT = String;
+pub fn in_t(_ctx: &Ctx, token: Token) -> InT {
+    token.value.into()
+}
+pub type OutT = String;
+pub fn out_t(_ctx: &Ctx, token: Token) -> OutT {
     token.value.into()
 }

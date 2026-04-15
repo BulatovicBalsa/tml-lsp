@@ -52,7 +52,7 @@ DerivedType                 : name=DotAccessExpression
 
 SimpleTypeSpec              : 'int' | 'uint' | 'real' | 'bool' | 'str' | 'char' ;
 
-IoDirection                 : 'in' | 'out';
+IoDirection                 : InT | OutT;
 
 TensorConstructor           : 'tensor'
                               '<'
@@ -463,8 +463,8 @@ ReturnT: 'return';
 ExistsT: 'exists';
 Macro: 'macro';
 Narrow: 'narrow';
-In: 'in';
-Out: 'out';
+InT: /in/;
+OutT: /out/;
 Dma: 'dma';
 Hil: 'hil';
 Ao: 'ao';

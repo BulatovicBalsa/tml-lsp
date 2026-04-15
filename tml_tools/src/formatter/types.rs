@@ -70,8 +70,8 @@ impl Format for TensorConstructor {
 impl Format for IoConstructor {
     fn format(&self, indent: usize) -> String {
         let direction = match self.direction {
-            IoDirection::In  => "in",
-            IoDirection::Out => "out",
+            IoDirection::InT(_)  => "in",
+            IoDirection::OutT(_) => "out",
         };
         let flags = match &self.io_flags {
             None => String::new(),

@@ -263,7 +263,7 @@ fn test_entry_function_call_update_fnc() {
 
 #[test]
 fn test_entry_function_call_from_global() {
-    let errors = check("output_fnc()");
+    let errors = check("a = output_fnc()");
     assert!(has_entry_fn_error(&errors, "output_fnc"));
 }
 
