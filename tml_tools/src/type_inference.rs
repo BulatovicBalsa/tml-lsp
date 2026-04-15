@@ -1,7 +1,7 @@
 use tml_parser::tml_actions::*;
 use crate::function_call_checker::lookup_builtin;
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
-
+use crate::visitor::{unpack_binary_bitwise_expressions, unpack_binary_math_expression};
 // ───────────────────────── Type promotion ─────────────────────────
 
 /// Returns the more general of two numeric types.
@@ -58,16 +58,7 @@ fn infer_math(e: &MathExpression, table: &SymbolTable, scope: &Scope) -> Option<
 }
 
 fn infer_binary_math(b: &BinaryMathExpression, table: &SymbolTable, scope: &Scope) -> Option<SymbolType> {
-    let (left, right) = match b {
-        BinaryMathExpression::C1(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C2(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C3(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C4(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C5(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C6(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C7(c) => (&c.left_expr, &c.right_expr),
-        BinaryMathExpression::C8(c) => (&c.left_expr, &c.right_expr), // ** power
-    };
+    let (left, right) = unpack_binary_math_expression(b);
     let left_ty = infer_type(left, table, scope)?;
     let right_ty = infer_type(right, table, scope)?;
     Some(promote(&left_ty, &right_ty))
@@ -153,13 +144,7 @@ fn infer_bitwise(e: &BitwiseExpression, table: &SymbolTable, scope: &Scope) -> O
             infer_type(&u.expr, table, scope)
         }
         BitwiseExpression::BinaryBitwiseExpression(b) => {
-            let (left, right) = match b {
-                BinaryBitwiseExpression::C1(c) => (&c.left_expr, &c.right_expr),
-                BinaryBitwiseExpression::C2(c) => (&c.left_expr, &c.right_expr),
-                BinaryBitwiseExpression::C3(c) => (&c.left_expr, &c.right_expr),
-                BinaryBitwiseExpression::C4(c) => (&c.left_expr, &c.right_expr),
-                BinaryBitwiseExpression::C5(c) => (&c.left_expr, &c.right_expr),
-            };
+            let (left, right) = unpack_binary_bitwise_expressions(b);
             let left_ty = infer_type(left, table, scope)?;
             let right_ty = infer_type(right, table, scope)?;
             Some(promote(&left_ty, &right_ty))

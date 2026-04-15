@@ -151,16 +151,7 @@ pub trait AstVisitor {
         match e {
             MathExpression::PostfixExpression(p)    => self.visit_postfix(p, scope),
             MathExpression::BinaryMathExpression(b) => {
-                let (left, right) = match b {
-                    BinaryMathExpression::C1(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C2(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C3(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C4(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C5(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C6(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C7(c) => (&c.left_expr, &c.right_expr),
-                    BinaryMathExpression::C8(c) => (&c.left_expr, &c.right_expr),
-                };
+                let (left, right) = unpack_binary_math_expression(b);
                 self.visit_expression(left, scope);
                 self.visit_expression(right, scope);
             }
@@ -213,13 +204,7 @@ pub trait AstVisitor {
     fn visit_bitwise(&mut self, e: &BitwiseExpression, scope: &Scope) {
         match e {
             BitwiseExpression::BinaryBitwiseExpression(b) => {
-                let (left, right) = match b {
-                    BinaryBitwiseExpression::C1(c) => (&c.left_expr, &c.right_expr),
-                    BinaryBitwiseExpression::C2(c) => (&c.left_expr, &c.right_expr),
-                    BinaryBitwiseExpression::C3(c) => (&c.left_expr, &c.right_expr),
-                    BinaryBitwiseExpression::C4(c) => (&c.left_expr, &c.right_expr),
-                    BinaryBitwiseExpression::C5(c) => (&c.left_expr, &c.right_expr),
-                };
+                let (left, right) = unpack_binary_bitwise_expressions(b);
                 self.visit_expression(left, scope);
                 self.visit_expression(right, scope);
             }
@@ -301,4 +286,29 @@ pub trait AstVisitor {
             }
         }
     }
+}
+
+pub fn unpack_binary_bitwise_expressions(b: &BinaryBitwiseExpression) -> (&Box<Expression>, &Box<Expression>) {
+    let (left, right) = match b {
+        BinaryBitwiseExpression::C1(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C2(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C3(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C4(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C5(c) => (&c.left_expr, &c.right_expr),
+    };
+    (left, right)
+}
+
+pub fn unpack_binary_math_expression(b: &BinaryMathExpression) -> (&Box<Expression>, &Box<Expression>) {
+    let (left, right) = match b {
+        BinaryMathExpression::C1(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C2(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C3(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C4(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C5(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C6(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C7(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C8(c) => (&c.left_expr, &c.right_expr),
+    };
+    (left, right)
 }
