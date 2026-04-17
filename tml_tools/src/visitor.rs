@@ -1,7 +1,37 @@
 use tml_parser::tml_actions::*;
 use crate::symbol_table::Scope;
 
+// ── Helper: iterate over Option<Vec<T>> without repetition ──────────────────
+
+pub fn opt_iter<T>(opt: &Option<Vec<T>>) -> impl Iterator<Item = &T> {
+    opt.iter().flat_map(|v| v.iter())
+}
+
+// ── AstVisitor trait ────────────────────────────────────────────────────────
+
 pub trait AstVisitor {
+
+    // ── Top-level entry point ──
+
+    fn visit_translation_unit(&mut self, unit: &TranslationUnit) {
+        for decl in &unit.ext_decls {
+            self.visit_external_declaration(decl);
+        }
+    }
+
+    fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
+        default_visit_external_declaration(self, decl);
+    }
+
+    // Separate hook so implementors can override function-level logic
+    // without repeating the scope construction boilerplate.
+    fn visit_function_definition(&mut self, f: &FunctionDefinition) {
+        let scope = Scope::Function(f.id.value.clone());
+        self.visit_statement_block(&f.statement_block, &scope);
+    }
+
+    // ── Expression ──
+
     fn visit_expression(&mut self, expr: &Expression, scope: &Scope) {
         match expr {
             Expression::MathExpression(e)     => self.visit_math(e, scope),
@@ -13,53 +43,29 @@ pub trait AstVisitor {
         }
     }
 
+    // ── Statement block ──
+
     fn visit_statement_block(&mut self, block: &StatementBlock, scope: &Scope) {
-        if let Some(statements) = &block.statements {
-            for stmt in statements {
-                self.visit_statement(stmt, scope);
-            }
+        for stmt in opt_iter(&block.statements) {
+            self.visit_statement(stmt, scope);
         }
     }
 
     fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
-        match stmt {
-            Statement::DeclarationStatement(d)    => self.visit_expression(&d.rvalue, scope),
-            Statement::AssignmentStatement(s)     => self.visit_assignment(s, scope),
-            Statement::IoWriteStatement(s)        => self.visit_io_write(s, scope),
-            Statement::FunctionCallStatement(s)   => self.visit_postfix(
-                &PostfixExpression::FunctionCall(s.call.clone()), scope
-            ),
-            Statement::SelectionStatement(s)      => self.visit_selection(s, scope),
-            Statement::IterationStatement(i)      => self.visit_iteration(i, scope),
-            Statement::JumpStatement(j)           => self.visit_jump(j, scope),
-            Statement::ExistsStatement(e)         => {
-                self.visit_statement_block(&e.statement_block, scope);
-                if let Some(else_c) = &e.else_clause {
-                    self.visit_statement_block(&else_c.else_statement_block, scope);
-                }
-            }
-            Statement::NotExistsStatement(e)      => {
-                self.visit_statement_block(&e.statement_block, scope);
-                if let Some(else_c) = &e.else_clause {
-                    self.visit_statement_block(&else_c.else_statement_block, scope);
-                }
-            }
-            Statement::FeedthroughStatement(e)    => {
-                self.visit_statement_block(&e.statement_block, scope);
-                if let Some(else_c) = &e.else_clause {
-                    self.visit_statement_block(&else_c.else_statement_block, scope);
-                }
-            }
-            Statement::NotFeedthroughStatement(e) => {
-                self.visit_statement_block(&e.statement_block, scope);
-                if let Some(else_c) = &e.else_clause {
-                    self.visit_statement_block(&else_c.else_statement_block, scope);
-                }
-            }
-            Statement::MacroFor(m)                => self.visit_for(&m.body, scope),
-            Statement::MacroIf(m)                 => self.visit_selection(&m.body, scope),
-            Statement::IoDeclarationStatement(_)  => {}
-            Statement::NoopStatement(_)           => {}
+        default_visit_statement(self, stmt, scope);
+    }
+
+    // ── Exists/Feedthrough body (shared pattern) ──
+
+    fn visit_exists_body(
+        &mut self,
+        block: &StatementBlock,
+        else_clause: &Option<ElseClause>,
+        scope: &Scope,
+    ) {
+        self.visit_statement_block(block, scope);
+        if let Some(else_c) = else_clause {
+            self.visit_statement_block(&else_c.else_statement_block, scope);
         }
     }
 
@@ -100,11 +106,9 @@ pub trait AstVisitor {
     fn visit_selection(&mut self, s: &SelectionStatement, scope: &Scope) {
         self.visit_expression(&s.condition, scope);
         self.visit_statement_block(&s.if_statement_block, scope);
-        if let Some(elseifs) = &s.elseif_clause {
-            for clause in elseifs {
-                self.visit_expression(&clause.condition, scope);
-                self.visit_statement_block(&clause.elseif_statement_block, scope);
-            }
+        for clause in opt_iter(&s.elseif_clause) {
+            self.visit_expression(&clause.condition, scope);
+            self.visit_statement_block(&clause.elseif_statement_block, scope);
         }
         if let Some(else_c) = &s.else_clause {
             self.visit_statement_block(&else_c.else_statement_block, scope);
@@ -115,7 +119,7 @@ pub trait AstVisitor {
 
     fn visit_iteration(&mut self, i: &IterationStatement, scope: &Scope) {
         match i {
-            IterationStatement::ForIterationStatement(f)   => self.visit_for(f, scope),
+            IterationStatement::ForIterationStatement(f) => self.visit_for(f, scope),
             IterationStatement::WhileIterationStatement(w) => {
                 self.visit_expression(&w.condition, scope);
                 self.visit_statement_block(&w.statement_block, scope);
@@ -125,8 +129,8 @@ pub trait AstVisitor {
 
     fn visit_for(&mut self, f: &ForIterationStatement, scope: &Scope) {
         match &f.header.iterator_expression {
-            IteratorExpression::Expression(e)      => self.visit_expression(e, scope),
-            IteratorExpression::RangeFromTo(r)     => {
+            IteratorExpression::Expression(e) => self.visit_expression(e, scope),
+            IteratorExpression::RangeFromTo(r) => {
                 self.visit_expression(&r.start, scope);
                 self.visit_expression(&r.stop, scope);
             }
@@ -219,20 +223,7 @@ pub trait AstVisitor {
     // ── Postfix ──
 
     fn visit_postfix(&mut self, e: &PostfixExpression, scope: &Scope) {
-        match e {
-            PostfixExpression::FunctionCall(f)        => self.visit_function_call(f, scope),
-            PostfixExpression::TensorExpression(t)    => {
-                self.visit_expression(&t.expr, scope);
-                self.visit_index_expression_list(&t.index, scope);
-            }
-            PostfixExpression::TransposeExpression(t) => self.visit_postfix(&t.expr, scope),
-            PostfixExpression::ExprInParenthesis(e)   => self.visit_expression(&e.expr, scope),
-            PostfixExpression::AttributeAccess(a)     => self.visit_expression(&a.expr, scope),
-            PostfixExpression::TensorLiteral(t)       => self.visit_cube(&t.expr, scope),
-            PostfixExpression::RValue(_)              => {}
-            PostfixExpression::Constant(_)            => {}
-            PostfixExpression::InputExpression(_)     => {}
-        }
+        default_visit_postfix(self, e, scope);
     }
 
     fn visit_index_expression_list(&mut self, list: &IndexExpressionList, scope: &Scope) {
@@ -243,18 +234,17 @@ pub trait AstVisitor {
             }
         }
     }
-    // ── Function call — checker is implementing its own logic ──
+
+    // ── Function call ──
 
     fn visit_function_call(&mut self, f: &FunctionCall, scope: &Scope) {
         // Default: visit all arguments
-        if let Some(args) = &f.arguments_list {
-            for arg in args {
-                let val = match arg {
-                    Argument::C1(a) => &a.value,
-                    Argument::C2(a) => &a.value,
-                };
-                self.visit_expression(val, scope);
-            }
+        for arg in opt_iter(&f.arguments_list) {
+            let val = match arg {
+                Argument::C1(a) => &a.value,
+                Argument::C2(a) => &a.value,
+            };
+            self.visit_expression(val, scope);
         }
     }
 
@@ -290,19 +280,24 @@ pub trait AstVisitor {
     }
 }
 
-pub fn unpack_binary_bitwise_expressions(b: &BinaryBitwiseExpression) -> (&Box<Expression>, &Box<Expression>) {
-    let (left, right) = match b {
+// ── Unpacking helpers ────────────────────────────────────────────────────────
+
+pub fn unpack_binary_bitwise_expressions(
+    b: &BinaryBitwiseExpression,
+) -> (&Box<Expression>, &Box<Expression>) {
+    match b {
         BinaryBitwiseExpression::C1(c) => (&c.left_expr, &c.right_expr),
         BinaryBitwiseExpression::C2(c) => (&c.left_expr, &c.right_expr),
         BinaryBitwiseExpression::C3(c) => (&c.left_expr, &c.right_expr),
         BinaryBitwiseExpression::C4(c) => (&c.left_expr, &c.right_expr),
         BinaryBitwiseExpression::C5(c) => (&c.left_expr, &c.right_expr),
-    };
-    (left, right)
+    }
 }
 
-pub fn unpack_binary_math_expression(b: &BinaryMathExpression) -> (&Box<Expression>, &Box<Expression>) {
-    let (left, right) = match b {
+pub fn unpack_binary_math_expression(
+    b: &BinaryMathExpression,
+) -> (&Box<Expression>, &Box<Expression>) {
+    match b {
         BinaryMathExpression::C1(c) => (&c.left_expr, &c.right_expr),
         BinaryMathExpression::C2(c) => (&c.left_expr, &c.right_expr),
         BinaryMathExpression::C3(c) => (&c.left_expr, &c.right_expr),
@@ -311,6 +306,67 @@ pub fn unpack_binary_math_expression(b: &BinaryMathExpression) -> (&Box<Expressi
         BinaryMathExpression::C6(c) => (&c.left_expr, &c.right_expr),
         BinaryMathExpression::C7(c) => (&c.left_expr, &c.right_expr),
         BinaryMathExpression::C8(c) => (&c.left_expr, &c.right_expr),
-    };
-    (left, right)
+    }
+}
+
+pub fn default_visit_external_declaration<V: AstVisitor + ?Sized>(
+    v: &mut V,
+    decl: &ExternalDeclaration,
+) {
+    match decl {
+        ExternalDeclaration::FunctionDefinition(f)     => v.visit_function_definition(f),
+        ExternalDeclaration::DeclarationStatement(d)   => v.visit_expression(&d.rvalue, &Scope::Global),
+        ExternalDeclaration::AssignmentStatement(s)    => v.visit_assignment(s, &Scope::Global),
+        ExternalDeclaration::IoWriteStatement(s)       => v.visit_io_write(s, &Scope::Global),
+        ExternalDeclaration::MacroFor(m)               => v.visit_for(&m.body, &Scope::Global),
+        ExternalDeclaration::MacroIf(m)                => v.visit_selection(&m.body, &Scope::Global),
+        ExternalDeclaration::IoDeclarationStatement(_) => {}
+    }
+}
+
+pub fn default_visit_statement<V: AstVisitor + ?Sized>(
+    v: &mut V,
+    stmt: &Statement,
+    scope: &Scope,
+) {
+    match stmt {
+        Statement::DeclarationStatement(d)    => v.visit_expression(&d.rvalue, scope),
+        Statement::AssignmentStatement(s)     => v.visit_assignment(s, scope),
+        Statement::IoWriteStatement(s)        => v.visit_io_write(s, scope),
+        Statement::FunctionCallStatement(s)   => {
+            v.visit_postfix(&PostfixExpression::FunctionCall(s.call.clone()), scope)
+        }
+        Statement::SelectionStatement(s)      => v.visit_selection(s, scope),
+        Statement::IterationStatement(i)      => v.visit_iteration(i, scope),
+        Statement::JumpStatement(j)           => v.visit_jump(j, scope),
+        Statement::ExistsStatement(e)         => v.visit_exists_body(&e.statement_block, &e.else_clause, scope),
+        Statement::NotExistsStatement(e)      => v.visit_exists_body(&e.statement_block, &e.else_clause, scope),
+        Statement::FeedthroughStatement(e)    => v.visit_exists_body(&e.statement_block, &e.else_clause, scope),
+        Statement::NotFeedthroughStatement(e) => v.visit_exists_body(&e.statement_block, &e.else_clause, scope),
+        Statement::MacroFor(m)                => v.visit_for(&m.body, scope),
+        Statement::MacroIf(m)                 => v.visit_selection(&m.body, scope),
+        Statement::IoDeclarationStatement(_)  => {}
+        Statement::NoopStatement(_)           => {}
+    }
+}
+
+pub fn default_visit_postfix<V: AstVisitor + ?Sized>(
+    v: &mut V,
+    e: &PostfixExpression,
+    scope: &Scope,
+) {
+    match e {
+        PostfixExpression::FunctionCall(f)        => v.visit_function_call(f, scope),
+        PostfixExpression::TensorExpression(t)    => {
+            v.visit_expression(&t.expr, scope);
+            v.visit_index_expression_list(&t.index, scope);
+        }
+        PostfixExpression::TransposeExpression(t) => v.visit_postfix(&t.expr, scope),
+        PostfixExpression::ExprInParenthesis(e)   => v.visit_expression(&e.expr, scope),
+        PostfixExpression::AttributeAccess(a)     => v.visit_expression(&a.expr, scope),
+        PostfixExpression::TensorLiteral(t)       => v.visit_cube(&t.expr, scope),
+        PostfixExpression::RValue(_)              => {}
+        PostfixExpression::Constant(_)            => {}
+        PostfixExpression::InputExpression(_)     => {}
+    }
 }

@@ -1,13 +1,13 @@
 use tml_parser::tml_actions::*;
 use crate::position::SourcePosition;
 use crate::symbol_table::{convert_type_spec, Scope, SymbolTable, SymbolType};
-use crate::visitor::AstVisitor;
+use crate::visitor::{AstVisitor, opt_iter, default_visit_external_declaration, default_visit_statement, default_visit_postfix};
 
 // ───────────────────────── HoverableKind ─────────────────────────
 
 #[derive(Debug, Clone)]
 pub enum HoverableKind {
-    /// Reference to expression variable
+    /// Reference to an expression variable
     VariableRef { name: String },
     /// Declaration: `int x = 5`
     VariableDecl { name: String, ty: SymbolType },
@@ -29,14 +29,14 @@ pub struct HoverableNode {
 impl HoverableNode {
     pub fn name(&self) -> &str {
         match &self.kind {
-            HoverableKind::VariableRef { name }  => name,
+            HoverableKind::VariableRef { name }      => name,
             HoverableKind::VariableDecl { name, .. } => name,
-            HoverableKind::FunctionCall { name } => name,
-            HoverableKind::FunctionDef { name }  => name,
+            HoverableKind::FunctionCall { name }     => name,
+            HoverableKind::FunctionDef { name }      => name,
         }
     }
 
-    /// Make hover Markdown content based on symbol table
+    /// Build hover Markdown content based on symbol table
     pub fn hover_content(&self, table: &SymbolTable) -> Option<String> {
         match &self.kind {
             HoverableKind::VariableRef { name } => {
@@ -49,12 +49,8 @@ impl HoverableNode {
                     name
                 ))
             }
-            HoverableKind::FunctionCall { name } => {
-                hover_for_function(name, table)
-            }
-            HoverableKind::FunctionDef { name } => {
-                hover_for_function(name, table)
-            }
+            HoverableKind::FunctionCall { name } => hover_for_function(name, table),
+            HoverableKind::FunctionDef { name }  => hover_for_function(name, table),
         }
     }
 }
@@ -92,7 +88,7 @@ fn hover_for_function(name: &str, table: &SymbolTable) -> Option<String> {
 
 pub fn format_type(ty: &SymbolType) -> String {
     match ty {
-        SymbolType::Simple(s) => format!("{:?}", s).to_lowercase(),
+        SymbolType::Simple(s)         => format!("{:?}", s).to_lowercase(),
         SymbolType::Tensor(inner, dims) => {
             format!("tensor<{}, {}>", format_type(inner), dims.join(", "))
         }
@@ -112,62 +108,8 @@ impl HoverableCollector {
     }
 
     pub fn collect(mut self, unit: &TranslationUnit) -> Vec<HoverableNode> {
-        for decl in &unit.ext_decls {
-            match decl {
-                ExternalDeclaration::FunctionDefinition(f) => {
-                    // Add function definition
-                    self.nodes.push(HoverableNode {
-                        kind: HoverableKind::FunctionDef { name: f.id.value.clone() },
-                        position: SourcePosition::from_rustemo(&f.id.position),
-                        scope: Scope::Global,
-                    });
-                    let scope = Scope::Function(f.id.value.clone());
-
-                    if let Some(params) = &f.parameters_list {
-                        for p in params {
-                            self.nodes.push(HoverableNode {
-                                kind: HoverableKind::VariableDecl {
-                                    name: p.id.value.clone(),
-                                    ty: convert_type_spec(&p._type),
-                                },
-                                position: SourcePosition::from_rustemo(&p.id.position),
-                                scope: scope.clone(),
-                            });
-                        }
-                    }
-                    self.visit_statement_block(&f.statement_block, &scope);
-                }
-                ExternalDeclaration::DeclarationStatement(d) => {
-                    self.add_decl(d, &Scope::Global);
-                    self.visit_expression(&d.rvalue, &Scope::Global);
-                }
-                ExternalDeclaration::AssignmentStatement(s) => {
-                    self.visit_assignment(s, &Scope::Global);
-                }
-                ExternalDeclaration::IoWriteStatement(s) => {
-                    self.visit_io_write(s, &Scope::Global);
-                }
-                ExternalDeclaration::MacroFor(m) => {
-                    self.visit_for(&m.body, &Scope::Global);
-                }
-                ExternalDeclaration::MacroIf(m) => {
-                    self.visit_selection(&m.body, &Scope::Global);
-                }
-                ExternalDeclaration::IoDeclarationStatement(_) => {}
-            }
-        }
+        self.visit_translation_unit(unit);
         self.nodes
-    }
-
-    fn add_decl(&mut self, d: &DeclarationStatement, scope: &Scope) {
-        self.nodes.push(HoverableNode {
-            kind: HoverableKind::VariableDecl {
-                name: d.id.names.iter().map(|id| id.value.as_str()).collect::<Vec<_>>().join("."),
-                ty: convert_type_spec(&d._type),
-            },
-            position: SourcePosition::from_rustemo(&d.id.names.first().unwrap().position),
-            scope: scope.clone(),
-        });
     }
 
     /// Find node at cursor position
@@ -176,75 +118,77 @@ impl HoverableCollector {
             n.position.contains_cursor(line, col, n.name().len())
         })
     }
+
+    fn push_variable_ref(&mut self, id: &Id, scope: &Scope) {
+        self.nodes.push(HoverableNode {
+            kind: HoverableKind::VariableRef { name: id.value.clone() },
+            position: SourcePosition::from_rustemo(&id.position),
+            scope: scope.clone(),
+        });
+    }
+
+    fn push_decl(&mut self, d: &DeclarationStatement, scope: &Scope) {
+        let first = d.id.names.first().unwrap();
+        self.nodes.push(HoverableNode {
+            kind: HoverableKind::VariableDecl {
+                name: d.id.names.iter().map(|id| id.value.as_str()).collect::<Vec<_>>().join("."),
+                ty: convert_type_spec(&d._type),
+            },
+            position: SourcePosition::from_rustemo(&first.position),
+            scope: scope.clone(),
+        });
+    }
 }
 
 // ───────────────────────── AstVisitor impl ─────────────────────────
 
 impl AstVisitor for HoverableCollector {
+    fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
+        // Record top-level declaration nodes before delegating
+        if let ExternalDeclaration::DeclarationStatement(d) = decl {
+            self.push_decl(d, &Scope::Global);
+        }
+        default_visit_external_declaration(self, decl);
+    }
+
+    fn visit_function_definition(&mut self, f: &FunctionDefinition) {
+        // Record function definition node
+        self.nodes.push(HoverableNode {
+            kind: HoverableKind::FunctionDef { name: f.id.value.clone() },
+            position: SourcePosition::from_rustemo(&f.id.position),
+            scope: Scope::Global,
+        });
+
+        let scope = Scope::Function(f.id.value.clone());
+
+        // Record parameter declarations
+        for p in opt_iter(&f.parameters_list) {
+            self.nodes.push(HoverableNode {
+                kind: HoverableKind::VariableDecl {
+                    name: p.id.value.clone(),
+                    ty: convert_type_spec(&p._type),
+                },
+                position: SourcePosition::from_rustemo(&p.id.position),
+                scope: scope.clone(),
+            });
+        }
+
+        self.visit_statement_block(&f.statement_block, &scope);
+    }
+
     fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
         match stmt {
             Statement::DeclarationStatement(d) => {
-                self.add_decl(d, scope);
+                self.push_decl(d, scope);
                 self.visit_expression(&d.rvalue, scope);
             }
-            other => {
-                match other {
-                    Statement::AssignmentStatement(s) => {
-                        match s {
-                            AssignmentStatement::VarAssignmentStatement(v) => {
-                                if let Some(first_id) = v.var.names.first() {
-                                    self.nodes.push(HoverableNode {
-                                        kind: HoverableKind::VariableRef {
-                                            name: first_id.value.clone()
-                                        },
-                                        position: SourcePosition::from_rustemo(&first_id.position),
-                                        scope: scope.clone(),
-                                    });
-                                }
-                                self.visit_expression(&v.rvalue, scope);
-                            }
-                            AssignmentStatement::TensorAssignmentStatement(s) => {
-                                self.visit_lvalue_indices(&s.tensor, scope);
-                                self.visit_expression(&s.rvalue, scope);
-                            }
-                        }
-                    }
-                    Statement::IoWriteStatement(s)        => self.visit_io_write(s, scope),
-                    Statement::FunctionCallStatement(s)   => self.visit_function_call(&s.call, scope),
-                    Statement::SelectionStatement(s)      => self.visit_selection(s, scope),
-                    Statement::IterationStatement(i)      => self.visit_iteration(i, scope),
-                    Statement::JumpStatement(j)           => self.visit_jump(j, scope),
-                    Statement::ExistsStatement(e)         => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::NotExistsStatement(e)      => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::FeedthroughStatement(e)    => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::NotFeedthroughStatement(e) => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::MacroFor(m)                => self.visit_for(&m.body, scope),
-                    Statement::MacroIf(m)                 => self.visit_selection(&m.body, scope),
-                    Statement::IoDeclarationStatement(_)  => {}
-                    Statement::NoopStatement(_)           => {}
-                    Statement::DeclarationStatement(_)    => unreachable!(),
+            Statement::AssignmentStatement(AssignmentStatement::VarAssignmentStatement(v)) => {
+                if let Some(first_id) = v.var.names.first() {
+                    self.push_variable_ref(first_id, scope);
                 }
+                self.visit_expression(&v.rvalue, scope);
             }
+            other => default_visit_statement(self, other, scope),
         }
     }
 
@@ -252,13 +196,7 @@ impl AstVisitor for HoverableCollector {
         match e {
             PostfixExpression::RValue(r) => {
                 if let Some(first_id) = r._ref.names.first() {
-                    self.nodes.push(HoverableNode {
-                        kind: HoverableKind::VariableRef {
-                            name: first_id.value.clone()
-                        },
-                        position: SourcePosition::from_rustemo(&first_id.position),
-                        scope: scope.clone(),
-                    });
+                    self.push_variable_ref(first_id, scope);
                 }
             }
             PostfixExpression::FunctionCall(f) => {
@@ -269,16 +207,7 @@ impl AstVisitor for HoverableCollector {
                 });
                 self.visit_function_call(f, scope);
             }
-            PostfixExpression::TensorExpression(t)    => {
-                self.visit_expression(&t.expr, scope);
-                self.visit_index_expression_list(&t.index, scope);
-            }
-            PostfixExpression::TransposeExpression(t) => self.visit_postfix(&t.expr, scope),
-            PostfixExpression::ExprInParenthesis(e)   => self.visit_expression(&e.expr, scope),
-            PostfixExpression::AttributeAccess(a)     => self.visit_expression(&a.expr, scope),
-            PostfixExpression::TensorLiteral(t)       => self.visit_cube(&t.expr, scope),
-            PostfixExpression::Constant(_)            => {}
-            PostfixExpression::InputExpression(_)     => {}
+            other => default_visit_postfix(self, other, scope),
         }
     }
 }

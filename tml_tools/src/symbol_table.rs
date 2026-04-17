@@ -1,5 +1,7 @@
 use tml_parser::tml_actions::*;
 use crate::type_inference::infer_type;
+use crate::visitor::{AstVisitor, opt_iter, default_visit_external_declaration};
+
 // ───────────────────────── Types ─────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +69,7 @@ impl SymbolError {
 pub struct SymbolTableBuilder {
     table: SymbolTable,
     errors: Vec<SymbolError>,
+    current_scope: Scope,
 }
 
 impl SymbolTableBuilder {
@@ -74,166 +77,66 @@ impl SymbolTableBuilder {
         SymbolTableBuilder {
             table: SymbolTable::default(),
             errors: vec![],
+            current_scope: Scope::Global,
         }
     }
 
     pub fn build(mut self, unit: &TranslationUnit) -> (SymbolTable, Vec<SymbolError>) {
         self.prescan_functions(unit);
-
-        for decl in &unit.ext_decls {
-            self.visit_external_declaration(decl);
-        }
+        self.visit_translation_unit(unit);
         (self.table, self.errors)
     }
 
     fn prescan_functions(&mut self, unit: &TranslationUnit) {
         for decl in &unit.ext_decls {
             if let ExternalDeclaration::FunctionDefinition(f) = decl {
-                let params: Vec<(SymbolType, String)> = match &f.parameters_list {
-                    None => vec![],
-                    Some(params) => params
-                        .iter()
-                        .map(|p| (convert_type_spec(&p._type), p.id.value.clone()))
-                        .collect(),
-                };
-                let ret_type = f.ret_type.as_ref().map(convert_type_spec);
-                self.table.functions.push(FunctionSignature {
-                    name: f.id.value.clone(),
-                    params,
-                    ret_type,
-                });
+                self.table.functions.push(self.build_function_signature(f));
             }
         }
     }
 
-    // ── External declarations ──
-
-    fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
-        match decl {
-            ExternalDeclaration::FunctionDefinition(f)     => self.visit_function(f),
-            ExternalDeclaration::DeclarationStatement(d)   => self.visit_declaration(d, Scope::Global),
-            ExternalDeclaration::AssignmentStatement(a)    => self.visit_assignment(a, &Scope::Global),
-            ExternalDeclaration::IoDeclarationStatement(_) => {},
-            ExternalDeclaration::IoWriteStatement(_)       => {}
-            ExternalDeclaration::MacroFor(m)               => self.visit_for(&m.body, Scope::Global),
-            ExternalDeclaration::MacroIf(m)                => self.visit_selection(&m.body, Scope::Global),
-        }
+    fn build_function_signature(&self, f: &FunctionDefinition) -> FunctionSignature {
+        let params = opt_iter(&f.parameters_list)
+            .map(|p| (convert_type_spec(&p._type), p.id.value.clone()))
+            .collect();
+        let ret_type = f.ret_type.as_ref().map(convert_type_spec);
+        FunctionSignature { name: f.id.value.clone(), params, ret_type }
     }
 
-    // ── Function ──
+    // ── Scope management ──
 
-    fn visit_function(&mut self, f: &FunctionDefinition) {
-        let scope = Scope::Function(f.id.value.clone());
-
-        // Add params as symbols
-        if let Some(params) = &f.parameters_list {
-            for p in params {
-                self.add_symbol(&p.id.value, convert_type_spec(&p._type), scope.clone());
-            }
-        }
-
-        // Function body
-        self.visit_statement_block(&f.statement_block, &scope);
+    fn enter_scope(&mut self, scope: Scope) -> Scope {
+        std::mem::replace(&mut self.current_scope, scope)
     }
 
-    // ── Statement block ──
-
-    fn visit_statement_block(&mut self, block: &StatementBlock, scope: &Scope) {
-        if let Some(statements) = &block.statements {
-            for stmt in statements {
-                self.visit_statement(stmt, scope);
-            }
-        }
+    fn exit_scope(&mut self, previous: Scope) {
+        self.current_scope = previous;
     }
 
-    fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
-        match stmt {
-            Statement::DeclarationStatement(d)   => self.visit_declaration(d, scope.clone()),
-            Statement::IoDeclarationStatement(_) => {},
-            Statement::SelectionStatement(s)     => self.visit_selection(s, scope.clone()),
-            Statement::IterationStatement(i)     => self.visit_iteration(i, scope),
-            Statement::ExistsStatement(e)        => self.visit_statement_block(&e.statement_block, scope),
-            Statement::NotExistsStatement(e)     => self.visit_statement_block(&e.statement_block, scope),
-            Statement::FeedthroughStatement(e)   => self.visit_statement_block(&e.statement_block, scope),
-            Statement::NotFeedthroughStatement(e) => self.visit_statement_block(&e.statement_block, scope),
-            Statement::MacroFor(m)               => self.visit_for(&m.body, scope.clone()),
-            Statement::MacroIf(m)                => self.visit_selection(&m.body, scope.clone()),
-            Statement::AssignmentStatement(a)    => self.visit_assignment(a, scope),
-            Statement::JumpStatement(_)          => {},
-            Statement::FunctionCallStatement(_)  => {},
-            Statement::IoWriteStatement(_)       => {},
-            Statement::NoopStatement(_)          => {},
-        }
-    }
+    // ── Symbol helpers ──
 
-    // ── Declaration ──
-
-    fn visit_declaration(&mut self, d: &DeclarationStatement, scope: Scope) {
+    fn handle_declaration(&mut self, d: &DeclarationStatement) {
         let name = dot_access_to_string(&d.id);
         let ty = convert_type_spec(&d._type);
-        self.add_symbol(&name, ty, scope);
+        self.add_symbol(&name, ty);
     }
 
-    // ── Assignment ──
-
-    fn visit_assignment(&mut self, stmt: &AssignmentStatement, scope: &Scope) {
-        match stmt {
-            AssignmentStatement::VarAssignmentStatement(v) => {
-                let name = dot_access_to_string(&v.var);
-                // Add to symbol table only if not already declared
-                if self.table.lookup(&name, scope).is_none() {
-                    if let Some(ty) = infer_type(&v.rvalue, &self.table, scope) {
-                        self.add_symbol(&name, ty, scope.clone());
-                    }
+    fn handle_assignment(&mut self, stmt: &AssignmentStatement) {
+        if let AssignmentStatement::VarAssignmentStatement(v) = stmt {
+            let name = dot_access_to_string(&v.var);
+            let scope = self.current_scope.clone();
+            // Add to symbol table only if not already declared
+            if self.table.lookup(&name, &scope).is_none() {
+                if let Some(ty) = infer_type(&v.rvalue, &self.table, &scope) {
+                    self.add_symbol(&name, ty);
                 }
             }
-            AssignmentStatement::TensorAssignmentStatement(_) => {}
         }
     }
 
-    // ── Selection ──
-
-    fn visit_selection(&mut self, s: &SelectionStatement, scope: Scope) {
-        self.visit_statement_block(&s.if_statement_block, &scope);
-
-        if let Some(elseifs) = &s.elseif_clause {
-            for clause in elseifs {
-                self.visit_statement_block(&clause.elseif_statement_block, &scope);
-            }
-        }
-        if let Some(else_clause) = &s.else_clause {
-            self.visit_statement_block(&else_clause.else_statement_block, &scope);
-        }
-    }
-
-    // ── Iteration ──
-
-    fn visit_iteration(&mut self, i: &IterationStatement, scope: &Scope) {
-        match i {
-            IterationStatement::ForIterationStatement(f)   => self.visit_for(f, scope.clone()),
-            IterationStatement::WhileIterationStatement(w) => {
-                self.visit_statement_block(&w.statement_block, scope)
-            }
-        }
-    }
-
-    fn visit_for(&mut self, f: &ForIterationStatement, scope: Scope) {
-        // For loop index type is int
-        self.add_symbol(
-            &f.header.idx.value,
-            SymbolType::Simple(SimpleTypeKind::Int),
-            scope.clone(),
-        );
-        self.visit_statement_block(&f.body.statement_block, &scope);
-    }
-
-    // ── Helper ──
-
-    fn add_symbol(&mut self, name: &str, ty: SymbolType, scope: Scope) {
-        // Check for duplicates in the same scope
-        let duplicate = self.table.symbols.iter().any(|s| {
-            s.name == name && s.scope == scope
-        });
+    fn add_symbol(&mut self, name: &str, ty: SymbolType) {
+        let scope = self.current_scope.clone();
+        let duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
         if duplicate {
             self.errors.push(SymbolError::new(
                 name,
@@ -242,6 +145,59 @@ impl SymbolTableBuilder {
         } else {
             self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
         }
+    }
+}
+
+// ───────────────────────── AstVisitor impl ─────────────────────────
+
+impl AstVisitor for SymbolTableBuilder {
+    fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
+        match decl {
+            ExternalDeclaration::DeclarationStatement(d) => self.handle_declaration(d),
+            ExternalDeclaration::AssignmentStatement(a)  => self.handle_assignment(a),
+            // All other variants only need traversal — delegate to default impl
+            _ => default_visit_external_declaration(self, decl),
+        }
+    }
+
+    fn visit_function_definition(&mut self, f: &FunctionDefinition) {
+        let prev = self.enter_scope(Scope::Function(f.id.value.clone()));
+
+        // Add parameters as symbols inside the function scope
+        for p in opt_iter(&f.parameters_list) {
+            self.add_symbol(&p.id.value, convert_type_spec(&p._type));
+        }
+
+        self.visit_statement_block(&f.statement_block, &self.current_scope.clone());
+        self.exit_scope(prev);
+    }
+
+    fn visit_statement(&mut self, stmt: &Statement, _scope: &Scope) {
+        let scope = self.current_scope.clone();
+        match stmt {
+            Statement::DeclarationStatement(d)    => self.handle_declaration(d),
+            Statement::AssignmentStatement(a)     => self.handle_assignment(a),
+            Statement::SelectionStatement(s)      => self.visit_selection(s, &scope),
+            Statement::IterationStatement(i)      => self.visit_iteration(i, &scope),
+            Statement::ExistsStatement(e)         => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
+            Statement::NotExistsStatement(e)      => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
+            Statement::FeedthroughStatement(e)    => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
+            Statement::NotFeedthroughStatement(e) => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
+            Statement::MacroFor(m)                => self.visit_for(&m.body, &scope),
+            Statement::MacroIf(m)                 => self.visit_selection(&m.body, &scope),
+            Statement::IoDeclarationStatement(_)
+            | Statement::JumpStatement(_)
+            | Statement::FunctionCallStatement(_)
+            | Statement::IoWriteStatement(_)
+            | Statement::NoopStatement(_)         => {}
+        }
+    }
+
+    fn visit_for(&mut self, f: &ForIterationStatement, _scope: &Scope) {
+        // For loop index variable is always int
+        self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
+        let scope = self.current_scope.clone();
+        self.visit_statement_block(&f.body.statement_block, &scope);
     }
 }
 
@@ -283,18 +239,18 @@ pub fn dot_access_to_string(d: &DotAccessExpression) -> String {
 }
 
 fn expr_to_string(e: &Expression) -> String {
-    // Simplified for tensor dimension only
+    // Simplified for tensor dimension expressions only
     match e {
         Expression::MathExpression(MathExpression::PostfixExpression(
-                                       PostfixExpression::Constant(Constant::Integer(i))
-                                   )) => match i {
+            PostfixExpression::Constant(Constant::Integer(i))
+        )) => match i {
             Integer::C1(c) => c.value.clone(),
             Integer::C2(c) => c.value.clone(),
             Integer::C3(c) => c.value.clone(),
         },
         Expression::MathExpression(MathExpression::PostfixExpression(
-                                       PostfixExpression::RValue(r)
-                                   )) => dot_access_to_string(&r._ref),
+            PostfixExpression::RValue(r)
+        )) => dot_access_to_string(&r._ref),
         _ => "<expr>".to_string(),
     }
 }
@@ -316,7 +272,7 @@ fn count_brackets_inner(b: &SquareBrackets1) -> usize {
 // ───────────────────────── Lookup ─────────────────────────
 
 impl SymbolTable {
-    /// Look for the symbol by name, Function Scope -> Global Scope Order
+    /// Look for the symbol by name, Function Scope -> Global Scope order
     pub fn lookup(&self, name: &str, scope: &Scope) -> Option<&Symbol> {
         // Current scope first
         if let Some(s) = self.symbols.iter().find(|s| s.name == name && &s.scope == scope) {

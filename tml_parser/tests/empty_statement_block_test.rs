@@ -39,7 +39,7 @@ fn test_empty_while() {
 
 #[test]
 fn test_empty_for() {
-    let input = "fn test():\n    for i in 0:10:\n    end\nend\n";
+    let input = "fn test():\n    for i = 0:10:\n    end\nend\n";
     assert_parses(input, "Failed to parse empty for loop");
 }
 

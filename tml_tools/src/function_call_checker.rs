@@ -21,29 +21,29 @@ pub struct BuiltinSignature {
 }
 
 const BUILTINS: &[BuiltinSignature] = &[
-    BuiltinSignature { name: "min",   arg_count: 1 },
-    BuiltinSignature { name: "min!",  arg_count: 1 },
-    BuiltinSignature { name: "max",   arg_count: 1 },
-    BuiltinSignature { name: "max!",  arg_count: 1 },
-    BuiltinSignature { name: "all",   arg_count: 1 },
-    BuiltinSignature { name: "all!",  arg_count: 1 },
-    BuiltinSignature { name: "any",   arg_count: 1 },
-    BuiltinSignature { name: "any!",  arg_count: 1 },
-    BuiltinSignature { name: "isnan", arg_count: 1 },
-    BuiltinSignature { name: "sin",   arg_count: 1 },
-    BuiltinSignature { name: "cos",   arg_count: 1 },
-    BuiltinSignature { name: "tan",   arg_count: 1 },
-    BuiltinSignature { name: "asin",  arg_count: 1 },
-    BuiltinSignature { name: "acos",  arg_count: 1 },
-    BuiltinSignature { name: "atan",  arg_count: 1 },
-    BuiltinSignature { name: "floor", arg_count: 1 },
-    BuiltinSignature { name: "ceil",  arg_count: 1 },
-    BuiltinSignature { name: "round", arg_count: 1 },
-    BuiltinSignature { name: "trunc", arg_count: 1 },
-    BuiltinSignature { name: "abs",   arg_count: 1 },
-    BuiltinSignature { name: "log",   arg_count: 1 },
-    BuiltinSignature { name: "log10", arg_count: 1 },
-    BuiltinSignature { name: "sqrt",  arg_count: 1 },
+    BuiltinSignature { name: "min",    arg_count: 1 },
+    BuiltinSignature { name: "min!",   arg_count: 1 },
+    BuiltinSignature { name: "max",    arg_count: 1 },
+    BuiltinSignature { name: "max!",   arg_count: 1 },
+    BuiltinSignature { name: "all",    arg_count: 1 },
+    BuiltinSignature { name: "all!",   arg_count: 1 },
+    BuiltinSignature { name: "any",    arg_count: 1 },
+    BuiltinSignature { name: "any!",   arg_count: 1 },
+    BuiltinSignature { name: "isnan",  arg_count: 1 },
+    BuiltinSignature { name: "sin",    arg_count: 1 },
+    BuiltinSignature { name: "cos",    arg_count: 1 },
+    BuiltinSignature { name: "tan",    arg_count: 1 },
+    BuiltinSignature { name: "asin",   arg_count: 1 },
+    BuiltinSignature { name: "acos",   arg_count: 1 },
+    BuiltinSignature { name: "atan",   arg_count: 1 },
+    BuiltinSignature { name: "floor",  arg_count: 1 },
+    BuiltinSignature { name: "ceil",   arg_count: 1 },
+    BuiltinSignature { name: "round",  arg_count: 1 },
+    BuiltinSignature { name: "trunc",  arg_count: 1 },
+    BuiltinSignature { name: "abs",    arg_count: 1 },
+    BuiltinSignature { name: "log",    arg_count: 1 },
+    BuiltinSignature { name: "log10",  arg_count: 1 },
+    BuiltinSignature { name: "sqrt",   arg_count: 1 },
     BuiltinSignature { name: "atan2",  arg_count: 2 },
     BuiltinSignature { name: "getbit", arg_count: 2 },
     BuiltinSignature { name: "setbit", arg_count: 3 },
@@ -124,19 +124,19 @@ impl std::fmt::Display for CallError {
 impl CallError {
     pub fn position(&self) -> &SourcePosition {
         match self {
-            CallError::UndefinedFunction { position, .. }      => position,
-            CallError::ArgumentCountMismatch { position, .. }  => position,
+            CallError::UndefinedFunction { position, .. }       => position,
+            CallError::ArgumentCountMismatch { position, .. }   => position,
             CallError::NamedArgumentNotAllowed { position, .. } => position,
-            CallError::EntryFunctionCall { position, .. }      => position,
+            CallError::EntryFunctionCall { position, .. }       => position,
         }
     }
 
     pub fn name(&self) -> &str {
         match self {
-            CallError::UndefinedFunction { name, .. }              => name,
-            CallError::ArgumentCountMismatch { name, .. }          => name,
+            CallError::UndefinedFunction { name, .. }               => name,
+            CallError::ArgumentCountMismatch { name, .. }           => name,
             CallError::NamedArgumentNotAllowed { function_name, .. } => function_name,
-            CallError::EntryFunctionCall { name, .. }              => name,
+            CallError::EntryFunctionCall { name, .. }               => name,
         }
     }
 }
@@ -154,50 +154,8 @@ impl<'a> FunctionCallChecker<'a> {
     }
 
     pub fn check(mut self, unit: &TranslationUnit) -> Vec<CallError> {
-        for decl in &unit.ext_decls {
-            match decl {
-                ExternalDeclaration::FunctionDefinition(f) => {
-                    let scope = Scope::Function(f.id.value.clone());
-                    self.visit_statement_block(&f.statement_block, &scope);
-                }
-                ExternalDeclaration::DeclarationStatement(d) => {
-                    self.visit_expression(&d.rvalue, &Scope::Global);
-                }
-                ExternalDeclaration::AssignmentStatement(s) => {
-                    self.visit_assignment(s, &Scope::Global);
-                }
-                ExternalDeclaration::IoWriteStatement(s) => {
-                    self.visit_io_write(s, &Scope::Global);
-                }
-                ExternalDeclaration::MacroFor(m) => {
-                    self.visit_for(&m.body, &Scope::Global);
-                }
-                ExternalDeclaration::MacroIf(m) => {
-                    self.visit_selection(&m.body, &Scope::Global);
-                }
-                ExternalDeclaration::IoDeclarationStatement(_) => {}
-            }
-        }
+        self.visit_translation_unit(unit);
         self.errors
-    }
-}
-
-// ───────────────────────── DiagnosticSource impl ─────────────────────────
-
-pub struct FunctionCallDiagnosticSource;
-
-impl DiagnosticSource for FunctionCallDiagnosticSource {
-    fn diagnostics(&self, ast: &TranslationUnit, table: &SymbolTable) -> Vec<Diagnostic> {
-        FunctionCallChecker::new(table)
-            .check(ast)
-            .into_iter()
-            .map(|e| Diagnostic::error(
-                e.to_string(),
-                e.position().line as u32,
-                e.position().column as u32,
-                e.name().len(),
-            ))
-            .collect()
     }
 }
 
@@ -213,6 +171,7 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
             Some(args) => args.iter().collect(),
         };
 
+        // Check for named arguments and visit argument expressions
         for arg in &args {
             if let Argument::C1(a) = arg {
                 self.errors.push(CallError::NamedArgumentNotAllowed {
@@ -274,5 +233,24 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
                 }
             }
         }
+    }
+}
+
+// ───────────────────────── DiagnosticSource impl ─────────────────────────
+
+pub struct FunctionCallDiagnosticSource;
+
+impl DiagnosticSource for FunctionCallDiagnosticSource {
+    fn diagnostics(&self, ast: &TranslationUnit, table: &SymbolTable) -> Vec<Diagnostic> {
+        FunctionCallChecker::new(table)
+            .check(ast)
+            .into_iter()
+            .map(|e| Diagnostic::error(
+                e.to_string(),
+                e.position().line as u32,
+                e.position().column as u32,
+                e.name().len(),
+            ))
+            .collect()
     }
 }

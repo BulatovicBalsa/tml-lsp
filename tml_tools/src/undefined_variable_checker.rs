@@ -2,7 +2,7 @@ use tml_parser::tml_actions::*;
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
 use crate::symbol_table::{Scope, SymbolTable, dot_access_to_string};
-use crate::visitor::AstVisitor;
+use crate::visitor::{AstVisitor, default_visit_external_declaration, default_visit_statement, default_visit_postfix};
 
 const RESERVED_NAMESPACES: &[&str] = &["t", "p", "n"];
 
@@ -63,31 +63,7 @@ impl<'a> UndefinedVariableChecker<'a> {
     }
 
     pub fn check(mut self, unit: &TranslationUnit) -> Vec<CheckError> {
-        for decl in &unit.ext_decls {
-            match decl {
-                ExternalDeclaration::FunctionDefinition(f) => {
-                    let scope = Scope::Function(f.id.value.clone());
-                    self.visit_statement_block(&f.statement_block, &scope);
-                }
-                ExternalDeclaration::DeclarationStatement(d) => {
-                    self.check_namespace_redeclaration(&d.id);
-                    self.visit_expression(&d.rvalue, &Scope::Global);
-                }
-                ExternalDeclaration::AssignmentStatement(s) => {
-                    self.visit_assignment(s, &Scope::Global);
-                }
-                ExternalDeclaration::IoWriteStatement(s) => {
-                    self.visit_io_write(s, &Scope::Global);
-                }
-                ExternalDeclaration::MacroFor(m) => {
-                    self.visit_for(&m.body, &Scope::Global);
-                }
-                ExternalDeclaration::MacroIf(m) => {
-                    self.visit_selection(&m.body, &Scope::Global);
-                }
-                ExternalDeclaration::IoDeclarationStatement(_) => {}
-            }
-        }
+        self.visit_translation_unit(unit);
         self.errors
     }
 
@@ -125,6 +101,33 @@ impl<'a> UndefinedVariableChecker<'a> {
     }
 }
 
+// ───────────────────────── AstVisitor impl ─────────────────────────
+
+impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
+    fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
+        // Check for namespace re-declarations at the top level
+        if let ExternalDeclaration::DeclarationStatement(d) = decl {
+            self.check_namespace_redeclaration(&d.id);
+        }
+        default_visit_external_declaration(self, decl);
+    }
+
+    fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
+        if let Statement::DeclarationStatement(d) = stmt {
+            self.check_namespace_redeclaration(&d.id);
+        }
+        default_visit_statement(self, stmt, scope);
+    }
+
+    fn visit_postfix(&mut self, e: &PostfixExpression, scope: &Scope) {
+        if let PostfixExpression::RValue(r) = e {
+            self.check_rvalue(&r._ref, scope);
+            return; // RValue has no children to traverse
+        }
+        default_visit_postfix(self, e, scope);
+    }
+}
+
 // ───────────────────────── DiagnosticSource impl ─────────────────────────
 
 pub struct UndefinedVariableDiagnosticSource;
@@ -141,74 +144,5 @@ impl DiagnosticSource for UndefinedVariableDiagnosticSource {
                 e.name().len(),
             ))
             .collect()
-    }
-}
-
-// ───────────────────────── AstVisitor impl ─────────────────────────
-
-impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
-    fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
-        match stmt {
-            Statement::DeclarationStatement(d) => {
-                self.check_namespace_redeclaration(&d.id);
-                self.visit_expression(&d.rvalue, scope);
-            }
-            other => {
-                match other {
-                    Statement::AssignmentStatement(s)     => self.visit_assignment(s, scope),
-                    Statement::IoWriteStatement(s)        => self.visit_io_write(s, scope),
-                    Statement::FunctionCallStatement(s)   => self.visit_function_call(&s.call, scope),
-                    Statement::SelectionStatement(s)      => self.visit_selection(s, scope),
-                    Statement::IterationStatement(i)      => self.visit_iteration(i, scope),
-                    Statement::JumpStatement(j)           => self.visit_jump(j, scope),
-                    Statement::ExistsStatement(e)         => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::NotExistsStatement(e)      => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::FeedthroughStatement(e)    => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::NotFeedthroughStatement(e) => {
-                        self.visit_statement_block(&e.statement_block, scope);
-                        if let Some(else_c) = &e.else_clause {
-                            self.visit_statement_block(&else_c.else_statement_block, scope);
-                        }
-                    }
-                    Statement::MacroFor(m)                => self.visit_for(&m.body, scope),
-                    Statement::MacroIf(m)                 => self.visit_selection(&m.body, scope),
-                    Statement::IoDeclarationStatement(_)  => {}
-                    Statement::NoopStatement(_)           => {}
-                    Statement::DeclarationStatement(_)    => unreachable!(),
-                }
-            }
-        }
-    }
-
-    fn visit_postfix(&mut self, e: &PostfixExpression, scope: &Scope) {
-        match e {
-            PostfixExpression::RValue(r) => self.check_rvalue(&r._ref, scope),
-            PostfixExpression::FunctionCall(f)        => self.visit_function_call(f, scope),
-            PostfixExpression::TensorExpression(t)    => {
-                self.visit_expression(&t.expr, scope);
-                self.visit_index_expression_list(&t.index, scope);
-            }
-            PostfixExpression::TransposeExpression(t) => self.visit_postfix(&t.expr, scope),
-            PostfixExpression::ExprInParenthesis(e)   => self.visit_expression(&e.expr, scope),
-            PostfixExpression::AttributeAccess(a)     => self.visit_expression(&a.expr, scope),
-            PostfixExpression::TensorLiteral(t)       => self.visit_cube(&t.expr, scope),
-            PostfixExpression::Constant(_)            => {}
-            PostfixExpression::InputExpression(_)     => {}
-        }
     }
 }
