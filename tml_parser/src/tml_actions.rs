@@ -549,7 +549,6 @@ pub fn statement0_statement1(_ctx: &Ctx, statement1: Statement1) -> Statement0 {
 pub fn statement0_empty(_ctx: &Ctx) -> Statement0 {
     None
 }
-
 #[derive(Debug, Clone)]
 pub enum Statement {
     FunctionCallStatement(FunctionCallStatement),
@@ -658,6 +657,7 @@ pub fn function_call_statement_c1(
 }
 #[derive(Debug, Clone)]
 pub struct SelectionStatement {
+    pub if_t: IfT,
     pub condition: Expression,
     pub header_colon: HeaderColon,
     pub if_statement_block: Box<StatementBlock>,
@@ -667,6 +667,7 @@ pub struct SelectionStatement {
 }
 pub fn selection_statement_c1(
     _ctx: &Ctx,
+    if_t: IfT,
     condition: Expression,
     header_colon: HeaderColon,
     if_statement_block: StatementBlock,
@@ -675,6 +676,7 @@ pub fn selection_statement_c1(
     end_t: EndT,
 ) -> SelectionStatement {
     SelectionStatement {
+        if_t,
         condition,
         header_colon,
         if_statement_block: Box::new(if_statement_block),
@@ -720,32 +722,38 @@ pub fn else_clause_opt_empty(_ctx: &Ctx) -> ElseClauseOpt {
 }
 #[derive(Debug, Clone)]
 pub struct ElseClause {
+    pub else_t: ElseT,
     pub header_colon: HeaderColon,
     pub else_statement_block: Box<StatementBlock>,
 }
 pub fn else_clause_c1(
     _ctx: &Ctx,
+    else_t: ElseT,
     header_colon: HeaderColon,
     else_statement_block: StatementBlock,
 ) -> ElseClause {
     ElseClause {
+        else_t,
         header_colon,
         else_statement_block: Box::new(else_statement_block),
     }
 }
 #[derive(Debug, Clone)]
 pub struct ElseIfClause {
+    pub else_if_t: ElseifT,
     pub condition: Expression,
     pub header_colon: HeaderColon,
     pub elseif_statement_block: Box<StatementBlock>,
 }
 pub fn else_if_clause_c1(
     _ctx: &Ctx,
+    else_if_t: ElseifT,
     condition: Expression,
     header_colon: HeaderColon,
     elseif_statement_block: StatementBlock,
 ) -> ElseIfClause {
     ElseIfClause {
+        else_if_t,
         condition,
         header_colon,
         elseif_statement_block: Box::new(elseif_statement_block),
@@ -770,6 +778,7 @@ pub fn iteration_statement_while_iteration_statement(
 }
 #[derive(Debug, Clone)]
 pub struct ForIterationStatement {
+    pub for_t: ForT,
     pub header: ForIterationHeader,
     pub header_colon: HeaderColon,
     pub body: ForIterationBody,
@@ -777,12 +786,14 @@ pub struct ForIterationStatement {
 }
 pub fn for_iteration_statement_c1(
     _ctx: &Ctx,
+    for_t: ForT,
     header: ForIterationHeader,
     header_colon: HeaderColon,
     body: ForIterationBody,
     end_t: EndT,
 ) -> ForIterationStatement {
     ForIterationStatement {
+        for_t,
         header,
         header_colon,
         body,
@@ -842,6 +853,7 @@ pub fn iterator_expression_range_from_to(
 }
 #[derive(Debug, Clone)]
 pub struct WhileIterationStatement {
+    pub while_t: WhileT,
     pub condition: Expression,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
@@ -849,12 +861,14 @@ pub struct WhileIterationStatement {
 }
 pub fn while_iteration_statement_c1(
     _ctx: &Ctx,
+    while_t: WhileT,
     condition: Expression,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
     end_t: EndT,
 ) -> WhileIterationStatement {
     WhileIterationStatement {
+        while_t,
         condition,
         header_colon,
         statement_block: Box::new(statement_block),
@@ -932,6 +946,7 @@ pub fn return_value_c1(_ctx: &Ctx, ret_val: Expression) -> ReturnValue {
 }
 #[derive(Debug, Clone)]
 pub struct ExistsStatement {
+    pub exists_t: ExistsT,
     pub guarded: DotAccessExpression1,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
@@ -940,6 +955,7 @@ pub struct ExistsStatement {
 }
 pub fn exists_statement_c1(
     _ctx: &Ctx,
+    exists_t: ExistsT,
     guarded: DotAccessExpression1,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
@@ -947,6 +963,7 @@ pub fn exists_statement_c1(
     end_t: EndT,
 ) -> ExistsStatement {
     ExistsStatement {
+        exists_t,
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
@@ -971,6 +988,8 @@ pub fn dot_access_expression1_dot_access_expression(
 }
 #[derive(Debug, Clone)]
 pub struct NotExistsStatement {
+    pub not_t: NotT,
+    pub exists_t: ExistsT,
     pub guarded: DotAccessExpression1,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
@@ -979,6 +998,8 @@ pub struct NotExistsStatement {
 }
 pub fn not_exists_statement_c1(
     _ctx: &Ctx,
+    not_t: NotT,
+    exists_t: ExistsT,
     guarded: DotAccessExpression1,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
@@ -986,6 +1007,8 @@ pub fn not_exists_statement_c1(
     end_t: EndT,
 ) -> NotExistsStatement {
     NotExistsStatement {
+        not_t,
+        exists_t,
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
@@ -995,6 +1018,7 @@ pub fn not_exists_statement_c1(
 }
 #[derive(Debug, Clone)]
 pub struct FeedthroughStatement {
+    pub feedthrough_t: FeedthroughT,
     pub guarded: DotAccessExpression1,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
@@ -1003,6 +1027,7 @@ pub struct FeedthroughStatement {
 }
 pub fn feedthrough_statement_c1(
     _ctx: &Ctx,
+    feedthrough_t: FeedthroughT,
     guarded: DotAccessExpression1,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
@@ -1010,6 +1035,7 @@ pub fn feedthrough_statement_c1(
     end_t: EndT,
 ) -> FeedthroughStatement {
     FeedthroughStatement {
+        feedthrough_t,
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
@@ -1019,6 +1045,8 @@ pub fn feedthrough_statement_c1(
 }
 #[derive(Debug, Clone)]
 pub struct NotFeedthroughStatement {
+    pub not_t: NotT,
+    pub feedthrough_t: FeedthroughT,
     pub guarded: DotAccessExpression1,
     pub header_colon: HeaderColon,
     pub statement_block: Box<StatementBlock>,
@@ -1027,6 +1055,8 @@ pub struct NotFeedthroughStatement {
 }
 pub fn not_feedthrough_statement_c1(
     _ctx: &Ctx,
+    not_t: NotT,
+    feedthrough_t: FeedthroughT,
     guarded: DotAccessExpression1,
     header_colon: HeaderColon,
     statement_block: StatementBlock,
@@ -1034,6 +1064,8 @@ pub fn not_feedthrough_statement_c1(
     end_t: EndT,
 ) -> NotFeedthroughStatement {
     NotFeedthroughStatement {
+        not_t,
+        feedthrough_t,
         guarded,
         header_colon,
         statement_block: Box::new(statement_block),
@@ -2420,3 +2452,42 @@ pub type OutT = String;
 pub fn out_t(_ctx: &Ctx, token: Token) -> OutT {
     token.value.into()
 }
+
+macro_rules! keyword_token {
+    ($name:ident, $fn_name:ident) => {
+        #[derive(Debug, Clone)]
+        pub struct $name {
+            pub value: String,
+            pub position: Position,
+        }
+        pub fn $fn_name(_ctx: &Ctx, token: Token) -> $name {
+            let value: String = token.value.into();
+            let col_start = _ctx
+                .position()
+                .line_col
+                .unwrap()
+                .column
+                .saturating_sub(value.len() - 1);
+            $name {
+                position: Position {
+                    pos: _ctx.position().pos.saturating_sub(value.len() - 1),
+                    line_col: Some(LineColumn {
+                        line: _ctx.position().line_col.unwrap().line,
+                        column: col_start,
+                    }),
+                },
+                value,
+            }
+        }
+    };
+}
+
+keyword_token!(IfT, if_t);
+keyword_token!(ElseT, else_t);
+keyword_token!(ElseifT, elseif_t);
+keyword_token!(ForT, for_t);
+keyword_token!(WhileT, while_t);
+keyword_token!(ExistsT, exists_t);
+keyword_token!(Feedthrough, feedthrough);
+keyword_token!(FeedthroughT, feedthrough_t);
+keyword_token!(NotT, not_t);
