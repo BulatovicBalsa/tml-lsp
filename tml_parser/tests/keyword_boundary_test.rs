@@ -48,7 +48,13 @@ fn test_keyword_prefix_identifier(#[case] var: &str) {
         _ => panic!("Expected a function definition, got {:?}", ext_decls[0]),
     };
 
-    let stmt = &func_decl.statement_block.statements[0];
+    let stmt = match &func_decl.statement_block.statements {
+        Some(statements) => {
+            assert_eq!(statements.len(), 1, "Expected one statement in function body, got {}", statements.len());
+            &statements[0]
+        }
+        None => panic!("Expected statements in function body, got none"),
+    };
     let var_assign = match stmt {
         Statement::AssignmentStatement(
             AssignmentStatement::VarAssignmentStatement(assign)

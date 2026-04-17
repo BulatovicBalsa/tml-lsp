@@ -82,7 +82,7 @@ IoFlagsSpec                 : Comma io_type='dma'
 IoRangeSpec                 : 'hil' | 'ao' | 'abs' | 'shared' | 'ext' | 'sink'
                             ;
 
-StatementBlock              : statements=Statement+
+StatementBlock              : statements=Statement*
                             ;
 
 Statement                   : FunctionCallStatement

@@ -525,9 +525,9 @@ pub fn io_range_spec_sink(_ctx: &Ctx) -> IoRangeSpec {
 }
 #[derive(Debug, Clone)]
 pub struct StatementBlock {
-    pub statements: Statement1,
+    pub statements: Statement0,
 }
-pub fn statement_block_c1(_ctx: &Ctx, statements: Statement1) -> StatementBlock {
+pub fn statement_block_c1(_ctx: &Ctx, statements: Statement0) -> StatementBlock {
     StatementBlock { statements }
 }
 pub type Statement1 = Vec<Statement>;
@@ -542,6 +542,14 @@ pub fn statement1_c1(
 pub fn statement1_statement(_ctx: &Ctx, statement: Statement) -> Statement1 {
     vec![statement]
 }
+pub type Statement0 = Option<Statement1>;
+pub fn statement0_statement1(_ctx: &Ctx, statement1: Statement1) -> Statement0 {
+    Some(statement1)
+}
+pub fn statement0_empty(_ctx: &Ctx) -> Statement0 {
+    None
+}
+
 #[derive(Debug, Clone)]
 pub enum Statement {
     FunctionCallStatement(FunctionCallStatement),

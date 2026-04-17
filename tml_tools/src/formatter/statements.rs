@@ -70,10 +70,13 @@ impl Format for Parameter {
 
 impl Format for StatementBlock {
     fn format(&self, indent: usize) -> String {
-        self.statements
-            .iter()
-            .map(|s| format!("{}\n", s.format(indent)))
-            .collect()
+        match &self.statements {
+            Some(statements) => statements
+                .iter()
+                .map(|s| format!("{}\n", s.format(indent)))
+                .collect(),
+            None => String::new(),
+        }
     }
 }
 

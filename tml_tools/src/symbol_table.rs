@@ -139,8 +139,10 @@ impl SymbolTableBuilder {
     // ── Statement block ──
 
     fn visit_statement_block(&mut self, block: &StatementBlock, scope: &Scope) {
-        for stmt in &block.statements {
-            self.visit_statement(stmt, scope);
+        if let Some(statements) = &block.statements {
+            for stmt in statements {
+                self.visit_statement(stmt, scope);
+            }
         }
     }
 
