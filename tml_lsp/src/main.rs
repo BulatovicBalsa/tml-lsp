@@ -9,6 +9,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tml_tools::diagnostics::DiagnosticsRunner;
+use tml_tools::empty_body_checker::EmptyBodyDiagnosticSource;
 use tml_tools::function_call_checker::FunctionCallDiagnosticSource;
 use tml_tools::undefined_variable_checker::UndefinedVariableDiagnosticSource;
 use tml_tools::diagnostics::DiagnosticSeverity as ParserDiagnosticSeverity;
@@ -47,7 +48,8 @@ impl Backend {
 
                 let runner = DiagnosticsRunner::new()
                     .add_source(UndefinedVariableDiagnosticSource)
-                    .add_source(FunctionCallDiagnosticSource);
+                    .add_source(FunctionCallDiagnosticSource)
+                    .add_source(EmptyBodyDiagnosticSource);
                 let diagnostics = runner.run(&ast, &table);
                 (table, sym_errors, nodes, folds, diagnostics)
             })

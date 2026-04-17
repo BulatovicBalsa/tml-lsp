@@ -8,3 +8,4 @@ pub mod type_inference;
 mod visitor;
 mod position;
 pub mod diagnostics;
+pub mod empty_body_checker;
