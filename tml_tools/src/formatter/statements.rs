@@ -75,7 +75,7 @@ impl Format for StatementBlock {
                 .iter()
                 .map(|s| format!("{}\n", s.format(indent)))
                 .collect(),
-            None => String::new(),
+            None => format!("{}pass\n", indent_str(indent)),
         }
     }
 }

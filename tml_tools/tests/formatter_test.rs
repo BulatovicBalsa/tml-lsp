@@ -210,6 +210,75 @@ fn test_if_elseif_else() {
     );
 }
 
+#[test]
+fn test_if_empty_body() {
+    assert_formats_to(
+        r#"
+            fn test():
+                if x > 0:
+                end
+            end
+        "#,
+        r#"
+            fn test():
+                if x > 0:
+                    pass
+                end
+            end
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_empty_body() {
+    assert_formats_to(
+        r#"
+            fn test():
+                if x > 0:
+                    y = 1
+                elseif x == 0:
+                else:
+                    y = -1
+                end
+            end
+        "#,
+        r#"
+            fn test():
+                if x > 0:
+                    y = 1
+                elseif x == 0:
+                    pass
+                else:
+                    y = -1
+                end
+            end
+        "#,
+    );
+}
+
+#[test]
+fn test_if_else_empty_body() {
+    assert_formats_to(
+        r#"
+            fn test():
+                if x > 0:
+                    y = 1
+                else:
+                end
+            end
+        "#,
+        r#"
+            fn test():
+                if x > 0:
+                    y = 1
+                else:
+                    pass
+                end
+            end
+        "#,
+    );
+}
+
 // ───────────────────────── For loop ─────────────────────────
 
 #[test]
@@ -252,6 +321,25 @@ fn test_for_range_step() {
     );
 }
 
+#[test]
+fn test_for_empty_body() {
+    assert_formats_to(
+        r#"
+            fn test():
+                for i = 0:10:
+                end
+            end
+        "#,
+        r#"
+            fn test():
+                for i = 0:10:
+                    pass
+                end
+            end
+        "#,
+    );
+}
+
 // ───────────────────────── While loop ─────────────────────────
 
 #[test]
@@ -268,6 +356,25 @@ fn test_while() {
             fn test():
                 while x > 0:
                     x = x - 1
+                end
+            end
+        "#,
+    );
+}
+
+#[test]
+fn test_while_empty_body() {
+    assert_formats_to(
+        r#"
+            fn test():
+                while x > 0:
+                end
+            end
+        "#,
+        r#"
+            fn test():
+                while x > 0:
+                    pass
                 end
             end
         "#,
@@ -303,6 +410,21 @@ fn test_function_with_params() {
         r#"
             fn add(int a, int b):
                 return a + b
+            end
+        "#,
+    );
+}
+
+#[test]
+fn test_function_empty_body() {
+    assert_formats_to(
+        r#"
+            fn   test(  ):
+            end
+        "#,
+        r#"
+            fn test():
+                pass
             end
         "#,
     );
