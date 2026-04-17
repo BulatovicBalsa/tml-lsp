@@ -105,18 +105,18 @@ Statement                   : FunctionCallStatement
 FunctionCallStatement       : call=FunctionCall {shift}
                             ;
 
-SelectionStatement          : 'if' condition=Expression HeaderColon
+SelectionStatement          : if_t=IfT condition=Expression HeaderColon
                                 if_statement_block=StatementBlock
                                 elseif_clause=ElseIfClause*
                                 else_clause=ElseClause?
                               EndT
                             ;
 
-ElseClause                  : 'else' HeaderColon
+ElseClause                  : else_t=ElseT HeaderColon
                                 else_statement_block=StatementBlock
                             ;
 
-ElseIfClause                : 'elseif' condition=Expression HeaderColon
+ElseIfClause                : elseif_t=ElseifT condition=Expression HeaderColon
                                 elseif_statement_block=StatementBlock
                             ;
 
@@ -124,7 +124,7 @@ IterationStatement          : ForIterationStatement
                             | WhileIterationStatement
                             ;
 
-ForIterationStatement       : 'for' header=ForIterationHeader HeaderColon
+ForIterationStatement       : for_t=ForT header=ForIterationHeader HeaderColon
                                 body=ForIterationBody
                               EndT
                             ;
@@ -140,7 +140,7 @@ IteratorExpression          : Expression
                             | RangeFromTo
                             ;
 
-WhileIterationStatement     : 'while' condition=Expression HeaderColon
+WhileIterationStatement     : while_t=WhileT condition=Expression HeaderColon
                                 statement_block=StatementBlock
                               EndT
                             ;
@@ -161,25 +161,25 @@ EmptyReturn                 : 'return' {shift};
 
 ReturnValue                 : 'return' ret_val=Expression;
 
-ExistsStatement             : 'exists' guarded=DotAccessExpression+[Comma] HeaderColon
+ExistsStatement             : exists_t=ExistsT guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
                               EndT
                             ;
 
-NotExistsStatement          : 'not' 'exists' guarded=DotAccessExpression+[Comma] HeaderColon
+NotExistsStatement          : not_t=NotT exists_t=ExistsT guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
                               EndT
                             ;
 
-FeedthroughStatement        : 'feedthrough' guarded=DotAccessExpression+[Comma] HeaderColon
+FeedthroughStatement        : feedthrough_t=FeedthroughT guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
                               EndT
                             ;
 
-NotFeedthroughStatement     : 'not' 'feedthrough' guarded=DotAccessExpression+[Comma] HeaderColon
+NotFeedthroughStatement     : not_t=NotT feedthrough_t=FeedthroughT guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
                                 else_clause=ElseClause?
                               EndT
@@ -452,15 +452,15 @@ Gt: '>';
 Le: '<=';
 Ge: '>=';
 Eq: '==';
-IfT: 'if';
-ElseT: 'else';
-ElseifT: 'elseif';
-ForT: 'for';
-WhileT: 'while';
+IfT: /if/;
+ElseT: /else/;
+ElseifT: /elseif/;
+ForT: /for/;
+WhileT: /while/;
 BreakT: 'break';
 ContinueT: 'continue';
 ReturnT: 'return';
-ExistsT: 'exists';
+ExistsT: /exists/;
 Macro: 'macro';
 Narrow: 'narrow';
 InT: /in/;
@@ -472,10 +472,11 @@ Abs: 'abs';
 Shared: 'shared';
 Ext: 'ext';
 Sink: 'sink';
-Feedthrough: 'feedthrough';
+FeedthroughT: /feedthrough/;
 Pass: 'pass';
 Input: 'input';
-NotT: 'not';
+NotT: /not/;
+UnaryNotT: 'not';
 MulAssignT: '*=';
 DivAssignT: '/=';
 AddAssignT: '+=';
