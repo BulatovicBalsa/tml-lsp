@@ -1,3 +1,4 @@
+use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::diagnostics::{Diagnostic, DiagnosticSeverity, DiagnosticsRunner};
@@ -18,80 +19,38 @@ fn has_error(diags: &[Diagnostic], msg: &str) -> bool {
     diags.iter().any(|d| d.severity == DiagnosticSeverity::Error && d.message.contains(msg))
 }
 
-// ───────────────────────── No warning when body has content ─────────────────────────
+// ───────────────────────── No error when body has content ─────────────────────────
 
-#[test]
-fn test_no_warning_for_non_empty_function() {
-    let diags = run("fn foo():\n    x = 1\nend");
-    assert!(diags.is_empty(), "{:?}", diags);
+#[rstest]
+#[case("fn foo():\n    x = 1\nend")]
+#[case("fn foo():\n    pass\nend")]
+#[case("fn foo():\n    if true:\n        x = 1\n    end\nend")]
+#[case("fn foo():\n    for i = 0:10:\n        x = i\n    end\nend")]
+#[case("fn foo():\n    int x = 0\n    while x > 0:\n        x = x - 1\n    end\nend")]
+fn test_no_error_for_non_empty_body(#[case] src: &str) {
+    let diags = run(src);
+    assert!(diags.is_empty(), "Expected no diagnostics for:\n{}\nGot: {:?}", src, diags);
 }
 
-#[test]
-fn test_no_warning_when_pass_present() {
-    // `pass` counts as content — body is not empty
-    let diags = run("fn foo():\n    pass\nend");
-    assert!(diags.is_empty(), "{:?}", diags);
-}
+// ───────────────────────── Error for empty bodies ─────────────────────────
 
-#[test]
-fn test_no_warning_for_non_empty_if() {
-    let diags = run("fn foo():\n    if true:\n        x = 1\n    end\nend");
-    assert!(diags.is_empty(), "{:?}", diags);
-}
-
-#[test]
-fn test_no_warning_for_non_empty_for() {
-    let diags = run("fn foo():\n    for i = 0:10:\n        x = i\n    end\nend");
-    assert!(diags.is_empty(), "{:?}", diags);
-}
-
-#[test]
-fn test_no_warning_for_non_empty_while() {
-    let diags = run("fn foo():\n    int x = 0\n    while x > 0:\n        x = x - 1\n    end\nend");
-    assert!(diags.is_empty(), "{:?}", diags);
-}
-
-// ───────────────────────── Warning for empty function ─────────────────────────
-
-#[test]
-fn test_warning_for_empty_function() {
-    let diags = run("fn foo():\nend");
-    assert!(has_error(&diags, "foo"), "{:?}", diags);
-    assert!(has_error(&diags, "empty body"), "{:?}", diags);
-}
-
-#[test]
-fn test_warning_includes_function_name() {
-    let diags = run("fn my_function():\nend");
-    assert!(has_error(&diags, "my_function"), "{:?}", diags);
-}
-
-// ───────────────────────── Warning for empty if/elseif/else ─────────────────────────
-
-#[test]
-fn test_warning_for_empty_if_body() {
-    let diags = run("fn foo():\n    if true:\n    end\nend");
-    assert!(has_error(&diags, "'if' body"), "{:?}", diags);
-}
-
-#[test]
-fn test_warning_for_empty_else_body() {
-    let diags = run("fn foo():\n    if true:\n        x = 1\n    else:\n    end\nend");
-    assert!(has_error(&diags, "'else' body"), "{:?}", diags);
-}
-
-// ───────────────────────── Warning for empty for/while ─────────────────────────
-
-#[test]
-fn test_warning_for_empty_for_body() {
-    let diags = run("fn foo():\n    for i = 0:10:\n    end\nend");
-    assert!(has_error(&diags, "'for"), "{:?}", diags);
-}
-
-#[test]
-fn test_warning_for_empty_while_body() {
-    let diags = run("fn foo():\n    int x = 1\n    while x > 0:\n    end\nend");
-    assert!(has_error(&diags, "'while' body"), "{:?}", diags);
+#[rstest]
+#[case("fn foo():\nend",                                                         "foo")]
+#[case("fn my_function():\nend",                                                 "my_function")]
+#[case("fn foo():\n    if true:\n    end\nend",                                  "'if' body")]
+#[case("fn foo():\n    if true:\n        pass\n    elseif false:\n    end\nend", "'elseif' body")]
+#[case("fn foo():\n    if true:\n        x=1\n    else:\n    end\nend",          "'else' body")]
+#[case("fn foo():\n    for i = 0:10:\n    end\nend",                             "'for i'")]
+#[case("fn foo():\n    int x=1\n    while x > 0:\n    end\nend",                "'while' body")]
+#[case("fn foo():\n    not exists t.a:\n    end\nend",                           "'not exists' body")]
+#[case("fn foo():\n    not feedthrough t.a:\n    end\nend",                      "'not feedthrough' body")]
+fn test_error_for_empty_body(#[case] src: &str, #[case] msg_fragment: &str) {
+    let diags = run(src);
+    assert!(
+        has_error(&diags, msg_fragment),
+        "Expected error containing '{}' for:\n{}\nGot: {:?}",
+        msg_fragment, src, diags
+    );
 }
 
 // ───────────────────────── Severity is Error ─────────────────────────
@@ -100,4 +59,64 @@ fn test_warning_for_empty_while_body() {
 fn test_severity_is_error() {
     let diags = run("fn foo():\nend");
     assert!(diags.iter().all(|d| d.severity == DiagnosticSeverity::Error));
+}
+
+// ───────────────────────── Keyword position ─────────────────────────
+
+#[rstest]
+#[case(
+    "fn foo():\n    if true:\n    end\nend",
+    "'if' body", 1, 4, 2
+)]
+#[case(
+    "fn foo():\n    for i = 0:10:\n    end\nend",
+    "'for i'", 1, 4, 3
+)]
+#[case(
+    "fn foo():\n    int x = 1\n    while x > 0:\n    end\nend",
+    "'while' body", 2, 4, 5
+)]
+#[case(
+    "fn foo():\n    if true:\n        x = 1\n    else:\n    end\nend",
+    "'else' body", 3, 4, 4
+)]
+#[case(
+    "fn foo():\n    not exists t.a:\n    end\nend",
+    "'not exists' body", 1, 4, 10  // "not exists" = 10 chars
+)]
+#[case(
+    "fn foo():\n    not feedthrough t.a:\n    end\nend",
+    "'not feedthrough' body", 1, 4, 15  // "not feedthrough" = 15 chars
+)]
+fn test_keyword_position(
+    #[case] src: &str,
+    #[case] msg_fragment: &str,
+    #[case] expected_line: u32,
+    #[case] expected_col: u32,
+    #[case] expected_len: usize,
+) {
+    let diags = run(src);
+    let d = diags
+        .iter()
+        .find(|d| d.message.contains(msg_fragment))
+        .unwrap_or_else(|| panic!(
+            "No diagnostic containing '{}'\nsrc:\n{}\ndiags: {:?}",
+            msg_fragment, src, diags
+        ));
+
+    assert_eq!(
+        d.line, expected_line,
+        "Wrong line for '{}': expected {}, got {}\nsrc:\n{}",
+        msg_fragment, expected_line, d.line, src
+    );
+    assert_eq!(
+        d.column, expected_col,
+        "Wrong col for '{}': expected {}, got {}\nsrc:\n{}",
+        msg_fragment, expected_col, d.column, src
+    );
+    assert_eq!(
+        d.length, expected_len,
+        "Wrong length for '{}': expected {}, got {}\nsrc:\n{}",
+        msg_fragment, expected_len, d.length, src
+    );
 }

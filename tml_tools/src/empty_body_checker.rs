@@ -84,16 +84,16 @@ impl AstVisitor for EmptyBodyChecker {
                 self.check_block(
                     &s.if_statement_block,
                     "Empty 'if' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&s.header_colon.position),
-                    1,
+                    SourcePosition::from_rustemo(&s.if_t.position),
+                    s.if_t.value.len(),
                 );
                 if let Some(elseifs) = &s.elseif_clause {
                     for clause in elseifs {
                         self.check_block(
                             &clause.elseif_statement_block,
                             "Empty 'elseif' body — add 'pass' if intentional",
-                            SourcePosition::from_rustemo(&clause.header_colon.position),
-                            1,
+                            SourcePosition::from_rustemo(&clause.else_if_t.position),
+                            clause.else_if_t.value.len(),
                         );
                     }
                 }
@@ -101,8 +101,8 @@ impl AstVisitor for EmptyBodyChecker {
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.header_colon.position),
-                        1,
+                        SourcePosition::from_rustemo(&else_c.else_t.position),
+                        else_c.else_t.value.len(),
                     );
                 }
                 self.visit_selection(s, scope);
@@ -113,16 +113,16 @@ impl AstVisitor for EmptyBodyChecker {
                         self.check_block(
                             &f.body.statement_block,
                             &format!("Empty 'for {}' body — add 'pass' if intentional", f.header.idx.value),
-                            SourcePosition::from_rustemo(&f.header_colon.position),
-                            1,
+                            SourcePosition::from_rustemo(&f.for_t.position),
+                            f.for_t.value.len(),
                         );
                     }
                     IterationStatement::WhileIterationStatement(w) => {
                         self.check_block(
                             &w.statement_block,
                             "Empty 'while' body — add 'pass' if intentional",
-                            SourcePosition::from_rustemo(&w.header_colon.position),
-                            1,
+                            SourcePosition::from_rustemo(&w.while_t.position),
+                            w.while_t.value.len(),
                         );
                     }
                 }
@@ -132,32 +132,34 @@ impl AstVisitor for EmptyBodyChecker {
                 self.check_block(
                     &e.statement_block,
                     "Empty 'exists' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&e.header_colon.position),
-                    1,
+                    SourcePosition::from_rustemo(&e.exists_t.position),
+                    e.exists_t.value.len(),
                 );
                 if let Some(else_c) = &e.else_clause {
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'exists else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.header_colon.position),
-                        1,
+                        SourcePosition::from_rustemo(&else_c.else_t.position),
+                        else_c.else_t.value.len(),
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
             }
             Statement::NotExistsStatement(e) => {
+                // Underline from 'not' through 'exists' as one span
+                let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
+                let span = e.not_t.value.len() + 1 + e.exists_t.value.len();
                 self.check_block(
                     &e.statement_block,
                     "Empty 'not exists' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&e.header_colon.position),
-                    1,
+                    not_pos, span,
                 );
                 if let Some(else_c) = &e.else_clause {
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'not exists else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.header_colon.position),
-                        1,
+                        SourcePosition::from_rustemo(&else_c.else_t.position),
+                        else_c.else_t.value.len(),
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
@@ -166,32 +168,34 @@ impl AstVisitor for EmptyBodyChecker {
                 self.check_block(
                     &e.statement_block,
                     "Empty 'feedthrough' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&e.header_colon.position),
-                    1,
+                    SourcePosition::from_rustemo(&e.feedthrough_t.position),
+                    e.feedthrough_t.value.len(),
                 );
                 if let Some(else_c) = &e.else_clause {
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'feedthrough else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.header_colon.position),
-                        1,
+                        SourcePosition::from_rustemo(&else_c.else_t.position),
+                        else_c.else_t.value.len(),
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
             }
             Statement::NotFeedthroughStatement(e) => {
+                // Underline from 'not' through 'feedthrough' as one span
+                let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
+                let span = e.not_t.value.len() + 1 + e.feedthrough_t.value.len();
                 self.check_block(
                     &e.statement_block,
                     "Empty 'not feedthrough' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&e.header_colon.position),
-                    1,
+                    not_pos, span,
                 );
                 if let Some(else_c) = &e.else_clause {
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'not feedthrough else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.header_colon.position),
-                        1,
+                        SourcePosition::from_rustemo(&else_c.else_t.position),
+                        else_c.else_t.value.len(),
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
@@ -200,13 +204,12 @@ impl AstVisitor for EmptyBodyChecker {
                 self.check_block(
                     &m.body.body.statement_block,
                     &format!("Empty 'for {}' body — add 'pass' if intentional", m.body.header.idx.value),
-                    SourcePosition::from_rustemo(&m.body.header_colon.position),
-                    1,
+                    SourcePosition::from_rustemo(&m.body.for_t.position),
+                    m.body.for_t.value.len(),
                 );
                 self.visit_for(&m.body, scope);
             }
             Statement::MacroIf(m) => {
-                // Reuse the SelectionStatement check by delegating
                 self.visit_statement(&Statement::SelectionStatement(m.body.clone()), scope);
             }
             other => default_visit_statement(self, other, scope),

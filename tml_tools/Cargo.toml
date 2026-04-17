@@ -10,3 +10,4 @@ rustemo = "0.9.1"
 [dev-dependencies]
 tml_parser = { path = "../tml_parser" }
 rustemo = "0.9.1"
+rstest = "0.26.1"
