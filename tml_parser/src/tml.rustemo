@@ -353,7 +353,7 @@ TransposeExpression         : expr=PostfixExpression '\''   {left, 13}  // trans
 FunctionCall                : id=Id alternative='!'? '(' arguments_list=Argument*[Comma] ')'
                             ;
 
-InputExpression             : 'input' '(' _type=TypeSpec ')'
+InputExpression             : InputT '(' _type=TypeSpec ')'
                             ;
 
 IndexExpressionList         : index_expression_list=IndexExpression+[Comma]
@@ -474,7 +474,7 @@ Ext: 'ext';
 Sink: 'sink';
 FeedthroughT: /feedthrough/;
 PassT: /pass/;
-Input: 'input';
+InputT: /input/;
 NotT: /not/;
 UnaryNotT: 'not';
 MulAssignT: '*=';

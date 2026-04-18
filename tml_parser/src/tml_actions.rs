@@ -183,7 +183,11 @@ pub struct MacroFor {
     pub macro_t: MacroT,
     pub body: ForIterationStatement,
 }
-pub fn macro_for_c1(_ctx: &Ctx, macro_t: MacroT, body: ForIterationStatement) -> MacroFor {
+pub fn macro_for_c1(
+    _ctx: &Ctx,
+    macro_t: MacroT,
+    body: ForIterationStatement,
+) -> MacroFor {
     MacroFor { macro_t, body }
 }
 #[derive(Debug, Clone)]
@@ -2109,10 +2113,12 @@ pub fn argument0_empty(_ctx: &Ctx) -> Argument0 {
 }
 #[derive(Debug, Clone)]
 pub struct InputExpression {
+    pub input_t: InputT,
     pub _type: Box<TypeSpec>,
 }
-pub fn input_expression_c1(_ctx: &Ctx, _type: TypeSpec) -> InputExpression {
+pub fn input_expression_c1(_ctx: &Ctx, input_t: InputT, _type: TypeSpec) -> InputExpression {
     InputExpression {
+        input_t,
         _type: Box::new(_type),
     }
 }
@@ -2484,3 +2490,4 @@ keyword_token!(ReturnT, return_t);
 keyword_token!(PassT, pass_t);
 keyword_token!(MacroT, macro_t);
 keyword_token!(BreakT, break_t);
+keyword_token!(InputT, input_t);

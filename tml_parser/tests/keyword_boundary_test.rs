@@ -65,3 +65,12 @@ fn test_keyword_prefix_identifier(#[case] var: &str) {
     let var_name = &var_assign.var.names[0];
     assert_eq!(var_name.value, var, "Expected variable name to be '{}', got '{}'", var, var_name.value);
 }
+
+#[rstest]
+#[case::input_kw_postfix("input_x")]
+#[case::not_kw_postfix("not_x")]
+fn test_keyword_postfix_identifier(#[case] var: &str) {
+    let parser = TmlParser::new();
+    let input = format!("fn test():\n    real a = {}\nend\n", var);
+    assert!(parser.parse(&input).is_ok(), "Failed to parse: {}", input);
+}
