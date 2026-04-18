@@ -14,10 +14,10 @@ ExternalDeclaration         : FunctionDefinition
                             | MacroIf
                             ;
 
-MacroFor                    : 'macro' body=ForIterationStatement
+MacroFor                    : MacroT body=ForIterationStatement
                             ;
 
-MacroIf                     : 'macro' body=SelectionStatement
+MacroIf                     : MacroT body=SelectionStatement
                             ;
 
 FunctionDefinition          : FuncT id=Id '(' parameters_list=Parameter*[Comma] ')' ret_type=TypeSpec? HeaderColon
@@ -150,7 +150,7 @@ JumpStatement               : BreakStatement
                             | ContinueStatement
                             ;
 
-BreakStatement              : 'break';
+BreakStatement              : BreakT;
 ContinueStatement           : ContinueT;
 
 ReturnStatement             : EmptyReturn
@@ -457,11 +457,11 @@ ElseT: /else/;
 ElseifT: /elseif/;
 ForT: /for/;
 WhileT: /while/;
-BreakT: 'break';
+BreakT: /break/;
 ContinueT: /continue/;
 ReturnT: /return/;
 ExistsT: /exists/;
-Macro: 'macro';
+MacroT: /macro/;
 Narrow: 'narrow';
 InT: /in/;
 OutT: /out/;

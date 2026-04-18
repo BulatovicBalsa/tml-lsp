@@ -180,17 +180,19 @@ pub fn external_declaration_macro_if(
 }
 #[derive(Debug, Clone)]
 pub struct MacroFor {
+    pub macro_t: MacroT,
     pub body: ForIterationStatement,
 }
-pub fn macro_for_c1(_ctx: &Ctx, body: ForIterationStatement) -> MacroFor {
-    MacroFor { body }
+pub fn macro_for_c1(_ctx: &Ctx, macro_t: MacroT, body: ForIterationStatement) -> MacroFor {
+    MacroFor { macro_t, body }
 }
 #[derive(Debug, Clone)]
 pub struct MacroIf {
+    pub macro_t: MacroT,
     pub body: SelectionStatement,
 }
-pub fn macro_if_c1(_ctx: &Ctx, body: SelectionStatement) -> MacroIf {
-    MacroIf { body }
+pub fn macro_if_c1(_ctx: &Ctx, macro_t: MacroT, body: SelectionStatement) -> MacroIf {
+    MacroIf { macro_t, body }
 }
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
@@ -905,10 +907,10 @@ pub fn jump_statement_continue_statement(
 }
 #[derive(Debug, Clone)]
 pub enum BreakStatement {
-    BreakT,
+    BreakT(BreakT),
 }
-pub fn break_statement_break_t(_ctx: &Ctx) -> BreakStatement {
-    BreakStatement::BreakT
+pub fn break_statement_break_t(_ctx: &Ctx, break_t: BreakT) -> BreakStatement {
+    BreakStatement::BreakT(break_t)
 }
 #[derive(Debug, Clone)]
 pub enum ContinueStatement {
@@ -2480,3 +2482,5 @@ keyword_token!(TensorT, tensor_t);
 keyword_token!(ContinueT, continue_t);
 keyword_token!(ReturnT, return_t);
 keyword_token!(PassT, pass_t);
+keyword_token!(MacroT, macro_t);
+keyword_token!(BreakT, break_t);
