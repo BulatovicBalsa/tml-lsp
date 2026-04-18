@@ -11,5 +11,4 @@ tml_parser = { path = "../tml_parser" }
 tml_tools = { path = "../tml_tools" }
 tower-lsp = "0.20"
 tokio = { version = "1", features = ["full"] }
-dashmap = "6.1.0"
 rustemo = "0.9.1"
