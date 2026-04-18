@@ -2,7 +2,7 @@ use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::diagnostics::{Diagnostic, DiagnosticSeverity, DiagnosticsRunner};
-use tml_tools::empty_body_checker::EmptyBodyDiagnosticSource;
+use tml_tools::empty_body_checker::{EmptyBodyChecker, EmptyBodyDiagnosticSource, EmptyBodyError};
 use tml_tools::symbol_table::SymbolTableBuilder;
 
 fn run(src: &str) -> Vec<Diagnostic> {
@@ -17,6 +17,16 @@ fn run(src: &str) -> Vec<Diagnostic> {
 
 fn has_error(diags: &[Diagnostic], msg: &str) -> bool {
     diags.iter().any(|d| d.severity == DiagnosticSeverity::Error && d.message.contains(msg))
+}
+
+fn run_errors(src: &str) -> Vec<EmptyBodyError> {
+    let normalized = src.replace("\r\n", "\n").replace('\r', "\n");
+
+    let ast = TmlParser::new()
+        .parse(&normalized)
+        .expect("Parse failed");
+
+    EmptyBodyChecker::new().check(&ast)
 }
 
 // ───────────────────────── No error when body has content ─────────────────────────
@@ -118,5 +128,73 @@ fn test_keyword_position(
         d.length, expected_len,
         "Wrong length for '{}': expected {}, got {}\nsrc:\n{}",
         msg_fragment, expected_len, d.length, src
+    );
+}
+
+// ───────────────────────── Quick fix metadata ─────────────────────────
+
+#[rstest]
+#[case(
+    "fn foo():\nend",
+    "foo",
+    1,
+    4
+)]
+#[case(
+    "fn foo():\n    if true:\n    end\nend",
+    "'if' body",
+    2,
+    8
+)]
+#[case(
+    "fn foo():\n    for i = 0:10:\n    end\nend",
+    "'for i'",
+    2,
+    8
+)]
+#[case(
+    "fn foo():\n    int x=1\n    while x > 0:\n    end\nend",
+    "'while' body",
+    3,
+    8
+)]
+#[case(
+    "fn foo():\n    if true:\n        x=1\n    else:\n    end\nend",
+    "'else' body",
+    4,
+    8
+)]
+#[case(
+    "  fn foo():\nend",
+    "foo",
+    1,
+    6
+)]
+fn test_quick_fix_metadata(
+    #[case] src: &str,
+    #[case] msg_fragment: &str,
+    #[case] expected_insert_line: u32,
+    #[case] expected_indent_levels: usize,
+) {
+    let errors = run_errors(src);
+    let e = errors
+        .iter()
+        .find(|e| e.message.contains(msg_fragment))
+        .unwrap_or_else(|| panic!(
+            "No error containing '{}'\nsrc:\n{}\nerrors: {:?}",
+            msg_fragment, src, errors
+        ));
+
+    assert_eq!(
+        e.insert_line, expected_insert_line,
+        "Wrong insert_line for '{}': expected {}, got {}\nsrc:\n{}",
+        msg_fragment, expected_insert_line, e.insert_line, src
+    );
+
+    let expected_indent = " ".repeat(expected_indent_levels);
+    assert_eq!(
+        e.indent, expected_indent,
+        "Wrong indent for '{}': expected {:?}, got {:?}\nsrc:\n{}",
+        msg_fragment, expected_indent, e.indent, src
     );
 }
