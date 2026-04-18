@@ -1,8 +1,9 @@
-use tml_parser::tml_actions::*;
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
+use crate::formatter::INDENT;
 use crate::position::SourcePosition;
 use crate::symbol_table::{Scope, SymbolTable};
-use crate::visitor::{AstVisitor, default_visit_statement};
+use crate::visitor::{default_visit_statement, AstVisitor};
+use tml_parser::tml_actions::*;
 
 // ───────────────────────── Helper ─────────────────────────
 
@@ -25,8 +26,12 @@ pub struct EmptyBodyChecker {
 #[derive(Debug, Clone)]
 pub struct EmptyBodyError {
     pub message: String,
-    pub position: SourcePosition,
+    pub keyword_position: SourcePosition,
     pub length: usize,
+
+    /// Line where 'pass' should be inserted (from header_colon.position, 0-based).
+    pub insert_line: u32,
+    pub indent: String,
 }
 
 impl EmptyBodyChecker {
@@ -39,24 +44,26 @@ impl EmptyBodyChecker {
         self.errors
     }
 
-    fn report_error(&mut self, message: impl Into<String>, position: SourcePosition, length: usize) {
-        self.errors.push(EmptyBodyError {
-            message: message.into(),
-            position,
-            length,
-        });
-    }
-
     fn check_block(
         &mut self,
         block: &StatementBlock,
         message: &str,
-        position: SourcePosition,
+        keyword_pos: SourcePosition,
         length: usize,
+        header_colon: &HeaderColon,
     ) {
-        if is_empty_block(block) {
-            self.report_error(message, position, length);
+        if !is_empty_block(block) {
+            return;
         }
+        let indent = " ".repeat(keyword_pos.column + INDENT.len());
+        let insert_line = SourcePosition::from_rustemo(&header_colon.position).line as u32;
+        self.errors.push(EmptyBodyError {
+            message: message.to_string(),
+            keyword_position: keyword_pos,
+            length,
+            insert_line,
+            indent,
+        });
     }
 }
 
@@ -64,13 +71,12 @@ impl EmptyBodyChecker {
 
 impl AstVisitor for EmptyBodyChecker {
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
+        let pos = SourcePosition::from_rustemo(&f.id.position);
         self.check_block(
             &f.statement_block,
             &format!("Function '{}' has an empty body — add 'pass' if intentional", f.id.value),
-            SourcePosition::from_rustemo(&f.id.position),
-            f.id.value.len(),
+            pos, f.id.value.len(), &f.header_colon,
         );
-        // Continue traversal so nested constructs inside the function are also checked
         let scope = Scope::Function(f.id.value.clone());
         self.visit_statement_block(&f.statement_block, &scope);
     }
@@ -81,28 +87,28 @@ impl AstVisitor for EmptyBodyChecker {
     fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
         match stmt {
             Statement::SelectionStatement(s) => {
+                let pos = SourcePosition::from_rustemo(&s.if_t.position);
                 self.check_block(
                     &s.if_statement_block,
                     "Empty 'if' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&s.if_t.position),
-                    s.if_t.value.len(),
+                    pos, s.if_t.value.len(), &s.header_colon,
                 );
                 if let Some(elseifs) = &s.elseif_clause {
                     for clause in elseifs {
+                        let pos = SourcePosition::from_rustemo(&clause.else_if_t.position);
                         self.check_block(
                             &clause.elseif_statement_block,
                             "Empty 'elseif' body — add 'pass' if intentional",
-                            SourcePosition::from_rustemo(&clause.else_if_t.position),
-                            clause.else_if_t.value.len(),
+                            pos, clause.else_if_t.value.len(), &clause.header_colon,
                         );
                     }
                 }
                 if let Some(else_c) = &s.else_clause {
+                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.else_t.position),
-                        else_c.else_t.value.len(),
+                        pos, else_c.else_t.value.len(), &else_c.header_colon,
                     );
                 }
                 self.visit_selection(s, scope);
@@ -110,102 +116,100 @@ impl AstVisitor for EmptyBodyChecker {
             Statement::IterationStatement(i) => {
                 match i {
                     IterationStatement::ForIterationStatement(f) => {
+                        let pos = SourcePosition::from_rustemo(&f.for_t.position);
                         self.check_block(
                             &f.body.statement_block,
                             &format!("Empty 'for {}' body — add 'pass' if intentional", f.header.idx.value),
-                            SourcePosition::from_rustemo(&f.for_t.position),
-                            f.for_t.value.len(),
+                            pos, f.for_t.value.len(), &f.header_colon,
                         );
                     }
                     IterationStatement::WhileIterationStatement(w) => {
+                        let pos = SourcePosition::from_rustemo(&w.while_t.position);
                         self.check_block(
                             &w.statement_block,
                             "Empty 'while' body — add 'pass' if intentional",
-                            SourcePosition::from_rustemo(&w.while_t.position),
-                            w.while_t.value.len(),
+                            pos, w.while_t.value.len(), &w.header_colon,
                         );
                     }
                 }
                 self.visit_iteration(i, scope);
             }
             Statement::ExistsStatement(e) => {
+                let pos = SourcePosition::from_rustemo(&e.exists_t.position);
                 self.check_block(
                     &e.statement_block,
                     "Empty 'exists' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&e.exists_t.position),
-                    e.exists_t.value.len(),
+                    pos, e.exists_t.value.len(), &e.header_colon,
                 );
                 if let Some(else_c) = &e.else_clause {
+                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'exists else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.else_t.position),
-                        else_c.else_t.value.len(),
+                        pos, else_c.else_t.value.len(), &else_c.header_colon,
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
             }
             Statement::NotExistsStatement(e) => {
-                // Underline from 'not' through 'exists' as one span
                 let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
                 let span = e.not_t.value.len() + 1 + e.exists_t.value.len();
                 self.check_block(
                     &e.statement_block,
                     "Empty 'not exists' body — add 'pass' if intentional",
-                    not_pos, span,
+                    not_pos, span, &e.header_colon,
                 );
                 if let Some(else_c) = &e.else_clause {
+                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'not exists else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.else_t.position),
-                        else_c.else_t.value.len(),
+                        pos, else_c.else_t.value.len(), &else_c.header_colon,
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
             }
             Statement::FeedthroughStatement(e) => {
+                let pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
                 self.check_block(
                     &e.statement_block,
                     "Empty 'feedthrough' body — add 'pass' if intentional",
-                    SourcePosition::from_rustemo(&e.feedthrough_t.position),
-                    e.feedthrough_t.value.len(),
+                    pos, e.feedthrough_t.value.len(), &e.header_colon,
                 );
                 if let Some(else_c) = &e.else_clause {
+                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'feedthrough else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.else_t.position),
-                        else_c.else_t.value.len(),
+                        pos, else_c.else_t.value.len(), &else_c.header_colon,
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
             }
             Statement::NotFeedthroughStatement(e) => {
-                // Underline from 'not' through 'feedthrough' as one span
                 let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
                 let span = e.not_t.value.len() + 1 + e.feedthrough_t.value.len();
                 self.check_block(
                     &e.statement_block,
                     "Empty 'not feedthrough' body — add 'pass' if intentional",
-                    not_pos, span,
+                    not_pos, span, &e.header_colon,
                 );
                 if let Some(else_c) = &e.else_clause {
+                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
                     self.check_block(
                         &else_c.else_statement_block,
                         "Empty 'not feedthrough else' body — add 'pass' if intentional",
-                        SourcePosition::from_rustemo(&else_c.else_t.position),
-                        else_c.else_t.value.len(),
+                        pos, else_c.else_t.value.len(), &else_c.header_colon,
                     );
                 }
                 self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
             }
             Statement::MacroFor(m) => {
+                let pos = SourcePosition::from_rustemo(&m.body.for_t.position);
                 self.check_block(
                     &m.body.body.statement_block,
                     &format!("Empty 'for {}' body — add 'pass' if intentional", m.body.header.idx.value),
-                    SourcePosition::from_rustemo(&m.body.for_t.position),
-                    m.body.for_t.value.len(),
+                    pos, m.body.for_t.value.len(), &m.body.header_colon,
                 );
                 self.visit_for(&m.body, scope);
             }
@@ -228,8 +232,8 @@ impl DiagnosticSource for EmptyBodyDiagnosticSource {
             .into_iter()
             .map(|e| Diagnostic::error(
                 e.message,
-                e.position.line as u32,
-                e.position.column as u32,
+                e.keyword_position.line as u32,
+                e.keyword_position.column as u32,
                 e.length,
             ))
             .collect()

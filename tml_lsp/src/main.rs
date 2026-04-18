@@ -1,19 +1,18 @@
 use rustemo::Parser;
 use std::collections::HashMap;
 use tml_parser::tml::TmlParser;
+use tml_tools::diagnostics::DiagnosticSeverity as ParserDiagnosticSeverity;
+use tml_tools::diagnostics::DiagnosticsRunner;
+use tml_tools::empty_body_checker::{EmptyBodyChecker, EmptyBodyDiagnosticSource};
 use tml_tools::folding_collector::{FoldingCollector, TmlFoldingRange};
+use tml_tools::function_call_checker::FunctionCallDiagnosticSource;
 use tml_tools::hoverable_collector::{HoverableCollector, HoverableKind, HoverableNode};
 use tml_tools::symbol_table::{Scope, SymbolTable, SymbolTableBuilder};
+use tml_tools::undefined_variable_checker::UndefinedVariableDiagnosticSource;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tml_tools::diagnostics::DiagnosticsRunner;
-use tml_tools::empty_body_checker::EmptyBodyDiagnosticSource;
-use tml_tools::function_call_checker::FunctionCallDiagnosticSource;
-use tml_tools::undefined_variable_checker::UndefinedVariableDiagnosticSource;
-use tml_tools::diagnostics::DiagnosticSeverity as ParserDiagnosticSeverity;
-// ───────────────────────── Backend ─────────────────────────
 
 struct Backend {
     client: Client,
@@ -21,6 +20,17 @@ struct Backend {
     hoverable: RwLock<HashMap<String, Vec<HoverableNode>>>,
     symbol_tables: RwLock<HashMap<String, SymbolTable>>,
     folding_ranges: RwLock<HashMap<String, Vec<TmlFoldingRange>>>,
+    quick_fixes: RwLock<HashMap<String, Vec<EmptyBodyQuickFix>>>,
+}
+
+#[derive(Debug, Clone)]
+struct EmptyBodyQuickFix {
+    /// Diagnostic line this fix applies to
+    diag_line: u32,
+    /// Line where 'pass' should be inserted (from header_colon position)
+    insert_line: u32,
+    /// Indentation string computed via formatter::INDENT
+    indent: String,
 }
 
 impl Backend {
@@ -31,6 +41,7 @@ impl Backend {
             hoverable: RwLock::new(HashMap::new()),
             symbol_tables: RwLock::new(HashMap::new()),
             folding_ranges: RwLock::new(HashMap::new()),
+            quick_fixes: RwLock::new(HashMap::new()),
         }
     }
 
@@ -51,13 +62,16 @@ impl Backend {
                     .add_source(FunctionCallDiagnosticSource)
                     .add_source(EmptyBodyDiagnosticSource);
                 let diagnostics = runner.run(&ast, &table);
-                (table, sym_errors, nodes, folds, diagnostics)
+
+                // Collect empty body fix metadata separately for code actions
+                let empty_body_fixes = EmptyBodyChecker::new().check(&ast);
+                (table, sym_errors, nodes, folds, diagnostics, empty_body_fixes)
             })
         })
             .await;
 
         match parse_result {
-            Ok(Ok((table, sym_errors, nodes, folds, diagnostics))) => {
+            Ok(Ok((table, sym_errors, nodes, folds, diagnostics, empty_body_fixes))) => {
                 self.client
                     .log_message(
                         MessageType::INFO,
@@ -73,6 +87,17 @@ impl Backend {
                 self.symbol_tables.write().await.insert(key.clone(), table);
                 self.hoverable.write().await.insert(key.clone(), nodes);
                 self.folding_ranges.write().await.insert(key.clone(), folds);
+
+                // Store quick fix metadata indexed by diagnostic position
+                let fixes: Vec<EmptyBodyQuickFix> = empty_body_fixes
+                    .into_iter()
+                    .map(|e| EmptyBodyQuickFix {
+                        diag_line: e.keyword_position.line as u32,
+                        insert_line: e.insert_line,
+                        indent: e.indent,
+                    })
+                    .collect();
+                self.quick_fixes.write().await.insert(key.clone(), fixes);
 
                 let hov_str = self.hoverable.read().await
                     .get(&key)
@@ -141,6 +166,7 @@ impl LanguageServer for Backend {
                 document_formatting_provider: Some(OneOf::Left(true)),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -178,8 +204,11 @@ impl LanguageServer for Backend {
         self.hoverable.write().await.remove(&key);
         self.symbol_tables.write().await.remove(&key);
         self.folding_ranges.write().await.remove(&key);
+        self.quick_fixes.write().await.remove(&key);
         self.client.publish_diagnostics(params.text_document.uri, vec![], None).await;
     }
+
+    // ── Code actions ──
 
     // ── Goto definition ──
     async fn goto_definition(
@@ -300,6 +329,59 @@ impl LanguageServer for Backend {
         });
 
         Ok(result)
+    }
+
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri.clone();
+        let uri_str = uri.to_string();
+        let range = params.range;
+
+        let fixes = self.quick_fixes.read().await;
+        let fixes = match fixes.get(&uri_str) {
+            Some(f) => f,
+            None => return Ok(None),
+        };
+
+        // Find a fix whose diagnostic position overlaps the requested range
+        let matching: Vec<CodeActionOrCommand> = fixes
+            .iter()
+            .filter(|fix| {
+                fix.diag_line >= range.start.line && fix.diag_line <= range.end.line
+            })
+            .map(|fix| {
+                let new_text = format!("{}pass\n", fix.indent);
+                let edit = TextEdit {
+                    range: Range {
+                        start: Position { line: fix.insert_line, character: 0 },
+                        end:   Position { line: fix.insert_line, character: 0 },
+                    },
+                    new_text,
+                };
+                let mut changes = HashMap::new();
+                changes.insert(uri.clone(), vec![edit]);
+
+                CodeActionOrCommand::CodeAction(CodeAction {
+                    title: "Add 'pass' statement".to_string(),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: None,
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
+                    is_preferred: Some(true),
+                    ..Default::default()
+                })
+            })
+            .collect();
+
+        if matching.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(matching))
+        }
     }
 
     // ── Formatting ──
