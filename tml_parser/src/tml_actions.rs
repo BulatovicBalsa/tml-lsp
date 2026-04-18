@@ -2440,10 +2440,6 @@ pub fn end_t(_ctx: &Ctx, token: Token) -> EndT {
         position: _ctx.position(),
     }
 }
-pub type FuncT = String;
-pub fn func_t(_ctx: &Ctx, token: Token) -> FuncT {
-    token.value.into()
-}
 pub type InT = String;
 pub fn in_t(_ctx: &Ctx, token: Token) -> InT {
     token.value.into()
@@ -2482,6 +2478,7 @@ macro_rules! keyword_token {
     };
 }
 
+keyword_token!(FuncT, func_t);
 keyword_token!(IfT, if_t);
 keyword_token!(ElseT, else_t);
 keyword_token!(ElseifT, elseif_t);
