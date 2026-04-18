@@ -65,6 +65,29 @@ impl EmptyBodyChecker {
             indent,
         });
     }
+
+    fn check_block_fn(
+        &mut self,
+        block: &StatementBlock,
+        message: &str,
+        function_name_position: SourcePosition,
+        length: usize,
+        header_colon: &HeaderColon,
+        func_t_position: SourcePosition,
+    ) {
+        if !is_empty_block(block) {
+            return;
+        }
+        let indent = " ".repeat(func_t_position.column + INDENT.len());
+        let insert_line = SourcePosition::from_rustemo(&header_colon.position).line as u32;
+        self.errors.push(EmptyBodyError {
+            message: message.to_string(),
+            keyword_position: function_name_position,
+            length,
+            insert_line,
+            indent,
+        });
+    }
 }
 
 // ───────────────────────── AstVisitor impl ─────────────────────────
@@ -72,10 +95,10 @@ impl EmptyBodyChecker {
 impl AstVisitor for EmptyBodyChecker {
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
         let pos = SourcePosition::from_rustemo(&f.id.position);
-        self.check_block(
+        self.check_block_fn(
             &f.statement_block,
             &format!("Function '{}' has an empty body — add 'pass' if intentional", f.id.value),
-            pos, f.id.value.len(), &f.header_colon,
+            pos, f.id.value.len(), &f.header_colon, SourcePosition::from_rustemo(&f.func_t.position)
         );
         let scope = Scope::Function(f.id.value.clone());
         self.visit_statement_block(&f.statement_block, &scope);
