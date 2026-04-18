@@ -50,11 +50,11 @@ DerivedType                 : name=DotAccessExpression
                               TypeKw
                             ;
 
-SimpleTypeSpec              : 'int' | 'uint' | 'real' | 'bool' | 'str' | 'char' ;
+SimpleTypeSpec              : IntT | UintT | RealT | BoolT | StrT | CharT ;
 
 IoDirection                 : InT | OutT;
 
-TensorConstructor           : 'tensor'
+TensorConstructor           : TensorT
                               '<'
                               _type=TypeSpec
                               Comma
@@ -151,15 +151,15 @@ JumpStatement               : BreakStatement
                             ;
 
 BreakStatement              : 'break';
-ContinueStatement           : 'continue';
+ContinueStatement           : ContinueT;
 
 ReturnStatement             : EmptyReturn
                             | ReturnValue
                             ;
 
-EmptyReturn                 : 'return' {shift};
+EmptyReturn                 : ReturnT {shift};
 
-ReturnValue                 : 'return' ret_val=Expression;
+ReturnValue                 : ReturnT ret_val=Expression;
 
 ExistsStatement             : exists_t=ExistsT guarded=DotAccessExpression+[Comma] HeaderColon
                                 statement_block=StatementBlock
@@ -212,7 +212,7 @@ DeclarationStatement        : _type=TypeSpec id=DotAccessExpression '=' rvalue=E
 IoDeclarationStatement      : io_type=IoConstructor id=DotAccessExpression
                             ;
 
-NoopStatement               : noop='pass'
+NoopStatement               : noop=PassT
                             ;
 
 Expression                  : LogicalExpression
@@ -440,13 +440,13 @@ CParen: ')';
 Colon: ':';
 EndT: /end/;
 Assign: '=';
-IntT: 'int';
-UintT: 'uint';
-RealT: 'real';
-BoolT: 'bool';
-StrT: 'str';
-CharT: 'char';
-TensorT: 'tensor';
+IntT: /int/;
+UintT: /uint/;
+RealT: /real/;
+BoolT: /bool/;
+StrT: /str/;
+CharT: /char/;
+TensorT: /tensor/;
 Lt: '<';
 Gt: '>';
 Le: '<=';
@@ -458,8 +458,8 @@ ElseifT: /elseif/;
 ForT: /for/;
 WhileT: /while/;
 BreakT: 'break';
-ContinueT: 'continue';
-ReturnT: 'return';
+ContinueT: /continue/;
+ReturnT: /return/;
 ExistsT: /exists/;
 Macro: 'macro';
 Narrow: 'narrow';
@@ -473,7 +473,7 @@ Shared: 'shared';
 Ext: 'ext';
 Sink: 'sink';
 FeedthroughT: /feedthrough/;
-Pass: 'pass';
+PassT: /pass/;
 Input: 'input';
 NotT: /not/;
 UnaryNotT: 'not';

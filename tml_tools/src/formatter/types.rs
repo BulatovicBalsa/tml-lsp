@@ -20,12 +20,12 @@ impl Format for SimpleType {
 impl Format for SimpleTypeSpec {
     fn format(&self, _indent: usize) -> String {
         match self {
-            SimpleTypeSpec::IntT  => "int".to_string(),
-            SimpleTypeSpec::UintT => "uint".to_string(),
-            SimpleTypeSpec::RealT => "real".to_string(),
-            SimpleTypeSpec::BoolT => "bool".to_string(),
-            SimpleTypeSpec::StrT  => "str".to_string(),
-            SimpleTypeSpec::CharT => "char".to_string(),
+            SimpleTypeSpec::IntT(_)  => "int".to_string(),
+            SimpleTypeSpec::UintT(_) => "uint".to_string(),
+            SimpleTypeSpec::RealT(_) => "real".to_string(),
+            SimpleTypeSpec::BoolT(_) => "bool".to_string(),
+            SimpleTypeSpec::StrT(_)  => "str".to_string(),
+            SimpleTypeSpec::CharT(_) => "char".to_string(),
         }
     }
 }

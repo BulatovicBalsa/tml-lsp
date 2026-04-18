@@ -1,6 +1,7 @@
 /// This file is maintained by rustemo but can be modified manually.
 /// All manual changes will be preserved except non-doc comments.
 use rustemo::{Context as RustemoContext, LineColumn, Position, Token as RustemoToken};
+use crate::keyword_token;
 use super::tml::{TokenKind, Context};
 pub type Input = str;
 pub type Ctx<'i> = Context<'i, Input>;
@@ -371,30 +372,30 @@ pub fn square_brackets0_empty(_ctx: &Ctx) -> SquareBrackets0 {
 }
 #[derive(Debug, Clone)]
 pub enum SimpleTypeSpec {
-    IntT,
-    UintT,
-    RealT,
-    BoolT,
-    StrT,
-    CharT,
+    IntT(IntT),
+    UintT(UintT),
+    RealT(RealT),
+    BoolT(BoolT),
+    StrT(StrT),
+    CharT(CharT),
 }
-pub fn simple_type_spec_int_t(_ctx: &Ctx) -> SimpleTypeSpec {
-    SimpleTypeSpec::IntT
+pub fn simple_type_spec_int_t(_ctx: &Ctx, int_t: IntT) -> SimpleTypeSpec {
+    SimpleTypeSpec::IntT(int_t)
 }
-pub fn simple_type_spec_uint_t(_ctx: &Ctx) -> SimpleTypeSpec {
-    SimpleTypeSpec::UintT
+pub fn simple_type_spec_uint_t(_ctx: &Ctx, uint_t: UintT) -> SimpleTypeSpec {
+    SimpleTypeSpec::UintT(uint_t)
 }
-pub fn simple_type_spec_real_t(_ctx: &Ctx) -> SimpleTypeSpec {
-    SimpleTypeSpec::RealT
+pub fn simple_type_spec_real_t(_ctx: &Ctx, real_t: RealT) -> SimpleTypeSpec {
+    SimpleTypeSpec::RealT(real_t)
 }
-pub fn simple_type_spec_bool_t(_ctx: &Ctx) -> SimpleTypeSpec {
-    SimpleTypeSpec::BoolT
+pub fn simple_type_spec_bool_t(_ctx: &Ctx, bool_t: BoolT) -> SimpleTypeSpec {
+    SimpleTypeSpec::BoolT(bool_t)
 }
-pub fn simple_type_spec_str_t(_ctx: &Ctx) -> SimpleTypeSpec {
-    SimpleTypeSpec::StrT
+pub fn simple_type_spec_str_t(_ctx: &Ctx, str_t: StrT) -> SimpleTypeSpec {
+    SimpleTypeSpec::StrT(str_t)
 }
-pub fn simple_type_spec_char_t(_ctx: &Ctx) -> SimpleTypeSpec {
-    SimpleTypeSpec::CharT
+pub fn simple_type_spec_char_t(_ctx: &Ctx, char_t: CharT) -> SimpleTypeSpec {
+    SimpleTypeSpec::CharT(char_t)
 }
 #[derive(Debug, Clone)]
 pub enum IoDirection {
@@ -409,15 +410,18 @@ pub fn io_direction_out_t(_ctx: &Ctx, out_t: OutT) -> IoDirection {
 }
 #[derive(Debug, Clone)]
 pub struct TensorConstructor {
+    pub tensor_t: TensorT,
     pub _type: Box<TypeSpec>,
     pub dimensions: Expression1,
 }
 pub fn tensor_constructor_c1(
     _ctx: &Ctx,
+    tensor_t: TensorT,
     _type: TypeSpec,
     dimensions: Expression1,
 ) -> TensorConstructor {
     TensorConstructor {
+        tensor_t,
         _type: Box::new(_type),
         dimensions,
     }
@@ -908,10 +912,13 @@ pub fn break_statement_break_t(_ctx: &Ctx) -> BreakStatement {
 }
 #[derive(Debug, Clone)]
 pub enum ContinueStatement {
-    ContinueT,
+    ContinueT(ContinueT),
 }
-pub fn continue_statement_continue_t(_ctx: &Ctx) -> ContinueStatement {
-    ContinueStatement::ContinueT
+pub fn continue_statement_continue_t(
+    _ctx: &Ctx,
+    continue_t: ContinueT,
+) -> ContinueStatement {
+    ContinueStatement::ContinueT(continue_t)
 }
 #[derive(Debug, Clone)]
 pub enum ReturnStatement {
@@ -932,17 +939,22 @@ pub fn return_statement_return_value(
 }
 #[derive(Debug, Clone)]
 pub enum EmptyReturn {
-    ReturnT,
+    ReturnT(ReturnT),
 }
-pub fn empty_return_return_t(_ctx: &Ctx) -> EmptyReturn {
-    EmptyReturn::ReturnT
+pub fn empty_return_return_t(_ctx: &Ctx, return_t: ReturnT) -> EmptyReturn {
+    EmptyReturn::ReturnT(return_t)
 }
 #[derive(Debug, Clone)]
 pub struct ReturnValue {
+    pub return_t: ReturnT,
     pub ret_val: Expression,
 }
-pub fn return_value_c1(_ctx: &Ctx, ret_val: Expression) -> ReturnValue {
-    ReturnValue { ret_val }
+pub fn return_value_c1(
+    _ctx: &Ctx,
+    return_t: ReturnT,
+    ret_val: Expression,
+) -> ReturnValue {
+    ReturnValue { return_t, ret_val }
 }
 #[derive(Debug, Clone)]
 pub struct ExistsStatement {
@@ -1207,11 +1219,11 @@ pub fn io_declaration_statement_c1(
     }
 }
 #[derive(Debug, Clone)]
-pub enum NoopStatement {
-    Pass,
+pub struct NoopStatement {
+    pub noop: PassT,
 }
-pub fn noop_statement_pass(_ctx: &Ctx) -> NoopStatement {
-    NoopStatement::Pass
+pub fn noop_statement_c1(_ctx: &Ctx, noop: PassT) -> NoopStatement {
+    NoopStatement { noop }
 }
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -2448,36 +2460,6 @@ pub type OutT = String;
 pub fn out_t(_ctx: &Ctx, token: Token) -> OutT {
     token.value.into()
 }
-
-macro_rules! keyword_token {
-    ($name:ident, $fn_name:ident) => {
-        #[derive(Debug, Clone)]
-        pub struct $name {
-            pub value: String,
-            pub position: Position,
-        }
-        pub fn $fn_name(_ctx: &Ctx, token: Token) -> $name {
-            let value: String = token.value.into();
-            let col_start = _ctx
-                .position()
-                .line_col
-                .unwrap()
-                .column
-                .saturating_sub(value.len() - 1);
-            $name {
-                position: Position {
-                    pos: _ctx.position().pos.saturating_sub(value.len() - 1),
-                    line_col: Some(LineColumn {
-                        line: _ctx.position().line_col.unwrap().line,
-                        column: col_start,
-                    }),
-                },
-                value,
-            }
-        }
-    };
-}
-
 keyword_token!(FuncT, func_t);
 keyword_token!(IfT, if_t);
 keyword_token!(ElseT, else_t);
@@ -2488,3 +2470,13 @@ keyword_token!(ExistsT, exists_t);
 keyword_token!(Feedthrough, feedthrough);
 keyword_token!(FeedthroughT, feedthrough_t);
 keyword_token!(NotT, not_t);
+keyword_token!(IntT, int_t);
+keyword_token!(UintT, uint_t);
+keyword_token!(RealT, real_t);
+keyword_token!(BoolT, bool_t);
+keyword_token!(StrT, str_t);
+keyword_token!(CharT, char_t);
+keyword_token!(TensorT, tensor_t);
+keyword_token!(ContinueT, continue_t);
+keyword_token!(ReturnT, return_t);
+keyword_token!(PassT, pass_t);

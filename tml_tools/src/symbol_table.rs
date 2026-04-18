@@ -217,12 +217,12 @@ pub fn convert_type_spec(ts: &TypeSpec) -> SymbolType {
 
 fn convert_simple(s: &SimpleTypeSpec) -> SimpleTypeKind {
     match s {
-        SimpleTypeSpec::IntT  => SimpleTypeKind::Int,
-        SimpleTypeSpec::UintT => SimpleTypeKind::Uint,
-        SimpleTypeSpec::RealT => SimpleTypeKind::Real,
-        SimpleTypeSpec::BoolT => SimpleTypeKind::Bool,
-        SimpleTypeSpec::StrT  => SimpleTypeKind::Str,
-        SimpleTypeSpec::CharT => SimpleTypeKind::Char,
+        SimpleTypeSpec::IntT(_)  => SimpleTypeKind::Int,
+        SimpleTypeSpec::UintT(_) => SimpleTypeKind::Uint,
+        SimpleTypeSpec::RealT(_) => SimpleTypeKind::Real,
+        SimpleTypeSpec::BoolT(_) => SimpleTypeKind::Bool,
+        SimpleTypeSpec::StrT(_)  => SimpleTypeKind::Str,
+        SimpleTypeSpec::CharT(_) => SimpleTypeKind::Char,
     }
 }
 
