@@ -228,3 +228,35 @@ fn test_multiple_comments_around_block() {
     let folds = collect_folds(src);
     assert!(folds.contains(&(1, 4)), "Expected fold (1, 4) with multiple comments, got {:?}", folds);
 }
+
+#[test]
+fn test_multiple_fn_folds() {
+    let src = r#"
+        fn init_fnc():
+            pass
+        end
+
+        fn output_fnc():
+            if p.unit == "Hz":
+                unit_conv = 2.0 * M_PI
+            else:
+                unit_conv = 1.0
+            end
+        end
+
+        fn update_fnc():
+            previous_in = t.in
+        end
+    "#;
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 3)), "Expected fold for init_fnc");
+    assert!(folds.contains(&(5, 11)), "Expected fold for output_fnc");
+    assert!(folds.contains(&(13, 15)), "Expected fold for update_fnc");
+}
+
+#[test]
+fn test_fn_no_trailing_newline() {
+    let src = "fn test():\n    x = 1\nend"; // No trailing newline
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 2)), "Expected fold (0, 2) without trailing newline, got {:?}", folds);
+}
