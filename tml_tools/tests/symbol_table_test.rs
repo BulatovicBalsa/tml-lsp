@@ -1,3 +1,4 @@
+use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::symbol_table::*;
@@ -444,4 +445,82 @@ fn test_infer_type_from_double_tensor_index() {
     let scope = Scope::Function("test".to_string());
     let sym = get_symbol(&table, "a", &scope);
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+// ───────────────────────── Namespace type inference ─────────────────────────
+
+#[test]
+fn test_namespace_ref_inferred_as_derived() {
+    // p.x is inferred as Derived("p.x")
+    let (table, errors) = build_table("a = p.x");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Derived("p.x".to_string()));
+}
+
+#[test]
+fn test_namespace_arithmetic_result_added_to_table() {
+    // amplitude = p.max - p.min should produce a symbol in the table
+    let (table, errors) = build_table("amplitude = p.max_val - p.min_val");
+    assert!(errors.is_empty());
+    assert!(table.lookup("amplitude", &Scope::Global).is_some());
+}
+
+#[test]
+fn test_namespace_then_used_in_next_assignment() {
+    // symbol built from namespace ref is usable immediately after
+    let (table, errors) = build_table(
+        "amplitude = p.max_val - p.min_val\nx = amplitude"
+    );
+    assert!(errors.is_empty());
+    assert!(table.lookup("x", &Scope::Global).is_some());
+}
+
+#[test]
+fn test_namespace_mixed_with_concrete_type_promotes() {
+    // real gain + p.x (Derived) should produce real (concrete wins over Derived)
+    let (table, errors) = build_table("real gain = 2.0\nresult = gain + p.offset");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "result", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
+}
+
+#[test]
+fn test_namespace_mixed_with_int_promotes() {
+    let (table, errors) = build_table("int x = 1\nresult = x + p.offset");
+    assert!(errors.is_empty());
+    let sym = get_symbol(&table, "result", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[rstest]
+#[case::ns_t("t")]
+#[case::ns_p("p")]
+#[case::ns_n("n")]
+fn test_all_namespaces_inferred_as_derived(#[case] ns: &str) {
+    let (table, errors) = build_table(
+        &format!("result = {}.offset", ns)
+    );
+    assert!(errors.is_empty());
+    assert!(matches!(get_symbol(&table, "result", &Scope::Global).ty, SymbolType::Derived(_)));
+}
+
+#[test]
+fn test_namespace_in_function_scope() {
+    let (table, errors) = build_table(
+        "fn update():\n    v_out = p.gain * t.in1\nend"
+    );
+    assert!(errors.is_empty());
+    let scope = Scope::Function("update".to_string());
+    assert!(table.lookup("v_out", &scope).is_some());
+}
+
+#[test]
+fn test_namespace_bare_root_not_inferred() {
+    // bare `p` (without dot) is not a namespace ref, so type cannot be inferred
+    // the symbol should not be added to the table
+    // TODO: Check if this is valid
+    let (table, _) = build_table("x = p");
+    assert!(table.lookup("x", &Scope::Global).is_none(),
+        "bare 'p' should not be inferred as Derived");
 }

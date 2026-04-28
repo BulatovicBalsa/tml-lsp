@@ -199,3 +199,76 @@ fn test_non_namespace_var_ok() {
     let errors = check("int ta = 5\nint pa = 3\nint na = 1");
     assert!(errors.is_empty());
 }
+
+#[test]
+fn test_no_undefined_var() {
+    let code = r#"
+        amplitude = p.max_val - p.min_val
+        x = amplitude
+    "#;
+    let errors = check(code);
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+// ───────────────────────── Namespace in expressions ─────────────────────────
+
+#[test]
+fn test_namespace_arithmetic_chain() {
+    // result of p - p should be usable in further assignments
+    let errors = check("amplitude = p.max_val - p.min_val\nx = amplitude");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_mixed_with_declared_var() {
+    // mixing namespace ref with a declared variable is valid
+    let errors = check("real gain = 2.0\nresult = t.in1 * gain");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_in_function_body() {
+    let errors = check("fn update():\n    v_out = p.gain * t.in1\nend");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_chained_assignments() {
+    // Each step should be inferred and not cause undefined errors
+    let errors = check(
+        "a = p.x\nb = a + p.y\nc = b * n.scale"
+    );
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_in_if_condition() {
+    let errors = check(
+        "fn test():\n    if p.enabled > 0:\n        x = 1\n    end\nend"
+    );
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_in_for_range() {
+    let errors = check(
+        "fn test():\n    for i = 0:p.count:\n        x = i\n    end\nend"
+    );
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_root_alone_is_undefined() {
+    // bare `p` without dot access is not a valid namespace reference
+    // TODO: check if this is valid
+    let errors = check("x = p");
+    assert!(has_undefined(&errors, "p"), "Expected undefined for bare 'p'");
+}
+
+#[test]
+fn test_all_namespaces_valid() {
+    let errors = check(
+        "a = t.in1\nb = p.gain\nc = n.scale"
+    );
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}

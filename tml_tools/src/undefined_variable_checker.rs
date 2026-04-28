@@ -74,7 +74,9 @@ impl<'a> UndefinedVariableChecker<'a> {
         };
         let root = first_id.value.as_str();
 
-        if is_namespace_root(root) {
+        // Namespace references are valid only when used with dot access (p.x, t.y, ...).
+        // A bare namespace root like `p` alone is treated as an undefined variable.
+        if is_namespace_root(root) && dot.names.len() > 1 {
             return;
         }
         if self.table.lookup(root, scope).is_none() {

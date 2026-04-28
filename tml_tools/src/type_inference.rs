@@ -6,7 +6,13 @@ use crate::visitor::{unpack_binary_bitwise_expressions, unpack_binary_math_expre
 
 /// Returns the more general of two numeric types.
 /// Promotion order: uint < int < real
+/// Derived types are treated as "unknown" — if one side is Derived,
+/// the other side wins (its concrete type is more informative).
 pub fn promote(a: &SymbolType, b: &SymbolType) -> SymbolType {
+    // If either side is Derived, defer to the other side
+    if matches!(a, SymbolType::Derived(_)) { return b.clone(); }
+    if matches!(b, SymbolType::Derived(_)) { return a.clone(); }
+
     match (a, b) {
         // If either side is real, result is real
         (SymbolType::Simple(SimpleTypeKind::Real), _) => SymbolType::Simple(SimpleTypeKind::Real),
@@ -97,8 +103,20 @@ fn infer_constant(c: &Constant) -> Option<SymbolType> {
 
 // ───────────────────────── RValue (variable reference) ─────────────────────────
 
+const RESERVED_NAMESPACES: &[&str] = &["t", "p", "n"];
+
 fn infer_rvalue(r: &RValue, table: &SymbolTable, scope: &Scope) -> Option<SymbolType> {
-    let root = r._ref.names.first()?.value.as_str();
+    let dot = &r._ref;
+    let root = dot.names.first()?.value.as_str();
+
+    // Namespace references (p.x, t.y, n.z, v.w) are always valid —
+    // they come from the runtime environment, not user declarations.
+    // We treat them as Derived so downstream inference can continue.
+    if RESERVED_NAMESPACES.contains(&root) && dot.names.len() > 1 {
+        let full = crate::symbol_table::dot_access_to_string(dot);
+        return Some(SymbolType::Derived(full));
+    }
+
     let symbol = table.lookup(root, scope)?;
     Some(symbol.ty.clone())
 }
