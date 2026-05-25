@@ -61,7 +61,8 @@ fn test_if_else_fold() {
     let src = "fn test():\n    if x > 0:\n        y = 1\n    else:\n        y = 0\n    end\nend\n";
     let folds = collect_folds(src);
     assert!(folds.contains(&(0, 6)), "Expected fold for fn (0, 6), got {:?}", folds);
-    assert!(folds.contains(&(1, 5)), "Expected fold for if (1, 5), got {:?}", folds);
+    assert!(folds.contains(&(1, 3)), "Expected fold for if (1, 3), got {:?}", folds);
+    assert!(folds.contains(&(3, 5)), "Expected fold for else (3, 5), got {:?}", folds);
 }
 
 #[test]
@@ -142,8 +143,8 @@ fn test_comment_on_fn_header() {
 fn test_comment_on_if_header() {
     let src = "fn test():\n    if x > 0: # Check condition\n        y = 1\n    end\nend\n";
     let folds = collect_folds(src);
-    assert!(folds.contains(&(1, 3)), "Expected fold for if with comment on header");
-    assert!(folds.contains(&(0, 4)), "Expected fold for fn");
+    assert!(folds.contains(&(1, 3)), "Expected fold for if with comment on header, got {:?}", folds);
+    assert!(folds.contains(&(0, 4)), "Expected fold for fn, got {:?}", folds);
 }
 
 #[test]
@@ -259,4 +260,28 @@ fn test_fn_no_trailing_newline() {
     let src = "fn test():\n    x = 1\nend"; // No trailing newline
     let folds = collect_folds(src);
     assert!(folds.contains(&(0, 2)), "Expected fold (0, 2) without trailing newline, got {:?}", folds);
+}
+
+#[test]
+fn test_else_fold() {
+    let src = "fn test():\n    if x > 0:\n        y = 1\n    else:\n        y = 0\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(3, 5)), "Expected fold for else (3, 5), got {:?}", folds);
+}
+
+#[test]
+fn test_elseif_fold() {
+    let src = "fn test():\n    if x > 0:\n        y = 1\n    elseif x < 0:\n        y = -1\n    else:\n        y = 0\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(3, 5)), "Expected fold for elseif (3, 5), got {:?}", folds);
+}
+
+#[test]
+fn test_multiple_elseif_fold() {
+    let src = "fn test():\n    if x > 0:\n        y = 1\n    elseif x < 0:\n        y = -1\n    elseif x == 0:\n        y = 0\n    else:\n        y = 0\n    end\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(1, 3)), "Expected fold for if (1, 3), got {:?}", folds);
+    assert!(folds.contains(&(3, 5)), "Expected fold for first elseif (3, 5), got {:?}", folds);
+    assert!(folds.contains(&(5, 7)), "Expected fold for second elseif (5, 7), got {:?}", folds);
+    assert!(folds.contains(&(7, 9)), "Expected fold for else (7, 9), got {:?}", folds);
 }

@@ -74,10 +74,14 @@ impl<'a> FoldingCollector<'a> {
             .map(|lc| lc.line.saturating_sub(1))
             .unwrap_or(0);
 
-        if start_line < end_line as u32 {
+        self.try_add_range_end_line(start_line, end_line as u32);
+    }
+
+    fn try_add_range_end_line(&mut self, start_line: u32, end_line: u32) {
+        if start_line < end_line {
             self.ranges.push(TmlFoldingRange {
                 start_line,
-                end_line: end_line as u32,
+                end_line,
             });
         }
     }
@@ -114,19 +118,40 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
     }
 
     fn visit_selection(&mut self, s: &SelectionStatement, scope: &crate::symbol_table::Scope) {
-        let start_line = start_line!(s);
-
-        self.try_add_range(start_line, &s.end_t.position);
-        self.visit_statement_block(&s.if_statement_block, scope);
-
+        let mut if_end_line = 0;
         if let Some(elseifs) = &s.elseif_clause {
-            for clause in elseifs {
+            for index in 0..elseifs.len() {
+                let clause = &elseifs[index];
+                if index == 0 {
+                    if_end_line = start_line!(clause);
+                }
+                if index == &elseifs.len() - 1 {
+                    if let Some(else_c) = &s.else_clause {
+                        self.try_add_range_end_line(start_line!(clause), start_line!(else_c));
+                    } else {
+                        self.try_add_range(start_line!(clause), &s.end_t.position);
+                    }
+                } else {
+                    let next_clause = &elseifs[index + 1];
+                    self.try_add_range_end_line(start_line!(clause), start_line!(next_clause));
+                }
                 self.visit_statement_block(&clause.elseif_statement_block, scope);
             }
         }
         if let Some(else_c) = &s.else_clause {
+            if if_end_line == 0 {
+                if_end_line = start_line!(else_c);
+            }
+            self.try_add_range(start_line!(else_c), &s.end_t.position);
             self.visit_statement_block(&else_c.else_statement_block, scope);
         }
+
+        if if_end_line == 0 {
+            self.try_add_range(start_line!(s), &s.end_t.position);
+        } else {
+            self.try_add_range_end_line(start_line!(s), if_end_line);
+        }
+        self.visit_statement_block(&s.if_statement_block, scope);
     }
 
     fn visit_iteration(&mut self, i: &IterationStatement, scope: &crate::symbol_table::Scope) {
