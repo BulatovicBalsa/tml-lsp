@@ -71,7 +71,7 @@ impl<'a> FoldingCollector<'a> {
 
     fn try_add_range(&mut self, start_line: u32, end_position: &rustemo::Position) {
         let end_line = end_position.line_col
-            .map(|lc| lc.line.saturating_sub(1))
+            .map(|lc| lc.line.saturating_sub(2))
             .unwrap_or(0);
 
         self.try_add_range_end_line(start_line, end_line as u32);
@@ -127,13 +127,13 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
                 }
                 if index == &elseifs.len() - 1 {
                     if let Some(else_c) = &s.else_clause {
-                        self.try_add_range_end_line(start_line!(clause), start_line!(else_c));
+                        self.try_add_range_end_line(start_line!(clause), start_line!(else_c) - 1);
                     } else {
                         self.try_add_range(start_line!(clause), &s.end_t.position);
                     }
                 } else {
                     let next_clause = &elseifs[index + 1];
-                    self.try_add_range_end_line(start_line!(clause), start_line!(next_clause));
+                    self.try_add_range_end_line(start_line!(clause), start_line!(next_clause) - 1);
                 }
                 self.visit_statement_block(&clause.elseif_statement_block, scope);
             }
@@ -149,7 +149,7 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
         if if_end_line == 0 {
             self.try_add_range(start_line!(s), &s.end_t.position);
         } else {
-            self.try_add_range_end_line(start_line!(s), if_end_line);
+            self.try_add_range_end_line(start_line!(s), if_end_line - 1);
         }
         self.visit_statement_block(&s.if_statement_block, scope);
     }
