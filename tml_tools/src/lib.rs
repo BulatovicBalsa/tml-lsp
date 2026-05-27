@@ -9,3 +9,4 @@ mod visitor;
 mod position;
 pub mod diagnostics;
 pub mod empty_body_checker;
+pub mod block_span_collector;

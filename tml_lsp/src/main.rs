@@ -13,6 +13,8 @@ use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tml_tools::block_span_collector::{find_indent, BlockSpan, BlockSpanCollector};
+use tml_tools::formatter::indent_str;
 
 struct Backend {
     client: Client,
@@ -21,6 +23,7 @@ struct Backend {
     symbol_tables: RwLock<HashMap<String, SymbolTable>>,
     folding_ranges: RwLock<HashMap<String, Vec<TmlFoldingRange>>>,
     quick_fixes: RwLock<HashMap<String, Vec<EmptyBodyQuickFix>>>,
+    block_spans: RwLock<HashMap<String, Vec<BlockSpan>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +45,7 @@ impl Backend {
             symbol_tables: RwLock::new(HashMap::new()),
             folding_ranges: RwLock::new(HashMap::new()),
             quick_fixes: RwLock::new(HashMap::new()),
+            block_spans: RwLock::new(HashMap::new()),
         }
     }
 
@@ -56,6 +60,7 @@ impl Backend {
                 let (table, sym_errors) = SymbolTableBuilder::new().build(&ast);
                 let nodes = HoverableCollector::new().collect(&ast);
                 let folds = FoldingCollector::new(&normalized).collect(&ast);
+                let spans = BlockSpanCollector::new().collect(&ast);
 
                 let runner = DiagnosticsRunner::new()
                     .add_source(UndefinedVariableDiagnosticSource)
@@ -65,28 +70,30 @@ impl Backend {
 
                 // Collect empty body fix metadata separately for code actions
                 let empty_body_fixes = EmptyBodyChecker::new().check(&ast);
-                (table, sym_errors, nodes, folds, diagnostics, empty_body_fixes)
+                (table, sym_errors, nodes, folds, diagnostics, empty_body_fixes, spans)
             })
         })
             .await;
 
         match parse_result {
-            Ok(Ok((table, sym_errors, nodes, folds, diagnostics, empty_body_fixes))) => {
+            Ok(Ok((table, sym_errors, nodes, folds, diagnostics, empty_body_fixes, block_spans))) => {
                 self.client
                     .log_message(
                         MessageType::INFO,
                         format!(
-                            "Parsed OK — {} symbol(s), {} hoverable node(s), {} fold(s), {} error(s)",
+                            "Parsed OK — {} symbol(s), {} hoverable node(s), {} fold(s), {} error(s), {} block span(s)",
                             table.symbols.len(),
                             nodes.len(),
                             folds.len(),
                             sym_errors.len(),
+                            block_spans.len(),
                         ),
                     )
                     .await;
                 self.symbol_tables.write().await.insert(key.clone(), table);
                 self.hoverable.write().await.insert(key.clone(), nodes);
                 self.folding_ranges.write().await.insert(key.clone(), folds);
+                self.block_spans.write().await.insert(key.clone(), block_spans);
 
                 // Store quick fix metadata indexed by diagnostic position
                 let fixes: Vec<EmptyBodyQuickFix> = empty_body_fixes
@@ -174,6 +181,10 @@ impl LanguageServer for Backend {
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                document_on_type_formatting_provider: Some(DocumentOnTypeFormattingOptions {
+                    first_trigger_character: "\n".to_string(),
+                    more_trigger_character: Some(vec!["\r".to_string()]),
+                }),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -221,6 +232,7 @@ impl LanguageServer for Backend {
         self.symbol_tables.write().await.remove(&key);
         self.folding_ranges.write().await.remove(&key);
         self.quick_fixes.write().await.remove(&key);
+        self.block_spans.write().await.remove(&key);
         self.client.publish_diagnostics(params.text_document.uri, vec![], None).await;
     }
 
@@ -304,15 +316,15 @@ impl LanguageServer for Backend {
         let tables = self.symbol_tables.read().await;
         let table = tables.get(&uri);
 
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!(
-                    "Hover: {:?} at {}:{}",
-                    node.kind, node.position.line, node.position.column
-                ),
-            )
-            .await;
+        // self.client
+        //     .log_message(
+        //         MessageType::INFO,
+        //         format!(
+        //             "Hover: {:?} at {}:{}",
+        //             node.kind, node.position.line, node.position.column
+        //         ),
+        //     )
+        //     .await;
 
         let content = table.and_then(|t| node.hover_content(t))
             .unwrap_or_else(|| format!("```tml\n{}\n```", node.name()));
@@ -467,6 +479,52 @@ impl LanguageServer for Backend {
                 Ok(None)
             }
         }
+    }
+
+    async fn on_type_formatting(
+        &self,
+        params: DocumentOnTypeFormattingParams,
+    ) -> Result<Option<Vec<TextEdit>>> {
+        let uri = params.text_document_position.text_document.uri.to_string();
+        let cursor_line = params.text_document_position.position.line;
+
+        // Try cached spans first
+        let cached = self.block_spans.read().await.get(&uri).cloned();
+
+        let spans = match cached {
+            Some(s) if !s.is_empty() => s,
+            // Cache miss or empty — parse the current document text synchronously
+            _ => {
+                let text = match self.documents.read().await.get(&uri).cloned() {
+                    Some(t) => t,
+                    None => return Ok(None),
+                };
+                let result = tokio::task::spawn_blocking(move || {
+                    TmlParser::new()
+                        .parse(&text)
+                        .ok()
+                        .map(|ast| BlockSpanCollector::new().collect(&ast))
+                }).await;
+                match result {
+                    Ok(Some(s)) => s,
+                    _ => return Ok(None),
+                }
+            }
+        };
+
+        let level = find_indent(&spans, cursor_line);
+
+        if level == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(vec![TextEdit {
+            range: Range {
+                start: Position { line: cursor_line, character: 0 },
+                end:   Position { line: cursor_line, character: 0 },
+            },
+            new_text: indent_str(level),
+        }]))
     }
 }
 
