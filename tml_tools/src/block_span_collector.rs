@@ -50,7 +50,7 @@ impl BlockSpanCollector {
 
 impl AstVisitor for BlockSpanCollector {
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
-        let header_pos = SourcePosition::from_rustemo(&f.header_colon.position);
+        let header_pos = SourcePosition::from_rustemo(&f.func_t.position);
         let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
         self.register(&header_pos, &end_pos, 0);
         let scope = Scope::Function(f.id.value.clone());
@@ -95,7 +95,7 @@ impl AstVisitor for BlockSpanCollector {
             Statement::IterationStatement(i) => {
                 match i {
                     IterationStatement::ForIterationStatement(f) => {
-                        let header_pos = SourcePosition::from_rustemo(&f.header_colon.position);
+                        let header_pos = SourcePosition::from_rustemo(&f.for_t.position);
                         let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
                         self.register(&header_pos, &end_pos, header_pos.column);
                     },

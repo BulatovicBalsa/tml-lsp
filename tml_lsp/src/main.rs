@@ -115,11 +115,11 @@ impl Backend {
                             .join("\n")
                     })
                     .unwrap_or_default();
-                if !hov_str.is_empty() {
-                    self.client
-                        .log_message(MessageType::INFO, format!("Hoverable variables:\n{}", hov_str))
-                        .await;
-                }
+                // if !hov_str.is_empty() {
+                //     self.client
+                //         .log_message(MessageType::INFO, format!("Hoverable variables:\n{}", hov_str))
+                //         .await;
+                // }
 
                 let lsp_diagnostics: Vec<Diagnostic> = diagnostics
                     .iter()
@@ -488,28 +488,19 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.to_string();
         let cursor_line = params.text_document_position.position.line;
 
-        // Try cached spans first
-        let cached = self.block_spans.read().await.get(&uri).cloned();
+        let text = match self.documents.read().await.get(&uri).cloned() {
+            Some(t) => t,
+            None => return Ok(None),
+        };
 
-        let spans = match cached {
-            Some(s) if !s.is_empty() => s,
-            // Cache miss or empty — parse the current document text synchronously
-            _ => {
-                let text = match self.documents.read().await.get(&uri).cloned() {
-                    Some(t) => t,
-                    None => return Ok(None),
-                };
-                let result = tokio::task::spawn_blocking(move || {
-                    TmlParser::new()
-                        .parse(&text)
-                        .ok()
-                        .map(|ast| BlockSpanCollector::new().collect(&ast))
-                }).await;
-                match result {
-                    Ok(Some(s)) => s,
-                    _ => return Ok(None),
-                }
-            }
+        let spans = match tokio::task::spawn_blocking(move || {
+            TmlParser::new()
+                .parse(&text)
+                .ok()
+                .map(|ast| BlockSpanCollector::new().collect(&ast))
+        }).await {
+            Ok(Some(s)) => s,
+            _ => return Ok(None),
         };
 
         let level = find_indent(&spans, cursor_line);
