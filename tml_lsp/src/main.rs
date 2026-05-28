@@ -54,6 +54,10 @@ impl Backend {
         let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
         self.documents.write().await.insert(key.clone(), normalized.clone());
 
+        self.client
+            .log_message(MessageType::INFO, "Document updated, starting parse...")
+            .await;
+
         let parse_result = tokio::task::spawn_blocking(move || {
             let parser = TmlParser::new();
             parser.parse(&normalized).map(|ast| {
@@ -105,21 +109,6 @@ impl Backend {
                     })
                     .collect();
                 self.quick_fixes.write().await.insert(key.clone(), fixes);
-
-                let hov_str = self.hoverable.read().await
-                    .get(&key)
-                    .map(|v| {
-                        v.iter()
-                            .map(|n| format!("  - {:?} at {}:{}", n.kind, n.position.line, n.position.column))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    })
-                    .unwrap_or_default();
-                // if !hov_str.is_empty() {
-                //     self.client
-                //         .log_message(MessageType::INFO, format!("Hoverable variables:\n{}", hov_str))
-                //         .await;
-                // }
 
                 let lsp_diagnostics: Vec<Diagnostic> = diagnostics
                     .iter()
@@ -316,16 +305,6 @@ impl LanguageServer for Backend {
         let tables = self.symbol_tables.read().await;
         let table = tables.get(&uri);
 
-        // self.client
-        //     .log_message(
-        //         MessageType::INFO,
-        //         format!(
-        //             "Hover: {:?} at {}:{}",
-        //             node.kind, node.position.line, node.position.column
-        //         ),
-        //     )
-        //     .await;
-
         let content = table.and_then(|t| node.hover_content(t))
             .unwrap_or_else(|| format!("```tml\n{}\n```", node.name()));
 
@@ -425,10 +404,6 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
-        self.client
-            .log_message(MessageType::INFO, "Formatting requested")
-            .await;
-
         let format_result = tokio::task::spawn_blocking(move || {
             let parser = TmlParser::new();
             parser.parse(&text).ok().map(|ast| {
@@ -450,10 +425,6 @@ impl LanguageServer for Backend {
                         None => return Ok(None),
                     }
                 };
-
-                self.client
-                    .log_message(MessageType::INFO, "Formatting OK")
-                    .await;
 
                 Ok(Some(vec![TextEdit {
                     range: Range {
@@ -503,7 +474,22 @@ impl LanguageServer for Backend {
             _ => return Ok(None),
         };
 
+        for span in &spans {
+            self.client.log_message(
+                MessageType::INFO,
+                format!(
+                    "Block span: header_line={}, end_line={}, indent_level={}",
+                    span.header_line, span.end_line, span.body_indent_level
+                ),
+            ).await;
+        }
+
         let level = find_indent(&spans, cursor_line);
+
+        self.client.log_message(
+            MessageType::INFO,
+            format!("Cursor at line {}, computed indent level: {}", cursor_line, level),
+        ).await;
 
         if level == 0 {
             return Ok(None);
