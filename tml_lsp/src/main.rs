@@ -50,6 +50,7 @@ impl Backend {
     }
 
     async fn update_document(&self, uri: Url, text: String) {
+        self.client.log_message(MessageType::INFO, "Updating document...").await;
         let key = uri.to_string();
         let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
         self.documents.write().await.insert(key.clone(), normalized.clone());
@@ -456,23 +457,11 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentOnTypeFormattingParams,
     ) -> Result<Option<Vec<TextEdit>>> {
+        self.client.log_message(MessageType::INFO, "On-type formatting triggered").await;
         let uri = params.text_document_position.text_document.uri.to_string();
         let cursor_line = params.text_document_position.position.line;
 
-        let text = match self.documents.read().await.get(&uri).cloned() {
-            Some(t) => t,
-            None => return Ok(None),
-        };
-
-        let spans = match tokio::task::spawn_blocking(move || {
-            TmlParser::new()
-                .parse(&text)
-                .ok()
-                .map(|ast| BlockSpanCollector::new().collect(&ast))
-        }).await {
-            Ok(Some(s)) => s,
-            _ => return Ok(None),
-        };
+        let spans = self.block_spans.read().await.get(&uri).cloned().unwrap_or_default();
 
         for span in &spans {
             self.client.log_message(
@@ -495,14 +484,32 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
+        let target_indent = indent_str(level);
+
+        // Check how much whitespace VS Code already inserted on cursor_line
+        let current_indent = self.documents.read().await
+            .get(&uri)
+            .and_then(|text| text.lines().nth(cursor_line as usize))
+            .map(|line| {
+                let trimmed = line.trim_start();
+                &line[..line.len() - trimmed.len()]
+            })
+            .unwrap_or("")
+            .to_string();
+
+        // Already correct — nothing to do
+        if current_indent == target_indent {
+            return Ok(None);
+        }
+
+        // Replace whatever whitespace is already there with the correct indent
         Ok(Some(vec![TextEdit {
             range: Range {
                 start: Position { line: cursor_line, character: 0 },
-                end:   Position { line: cursor_line, character: 0 },
+                end:   Position { line: cursor_line, character: current_indent.len() as u32 },
             },
-            new_text: indent_str(level),
-        }]))
-    }
+            new_text: target_indent,
+        }]))    }
 }
 
 // ───────────────────────── Main ─────────────────────────
