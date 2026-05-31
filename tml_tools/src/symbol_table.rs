@@ -69,7 +69,7 @@ impl SymbolError {
 pub struct SymbolTableBuilder {
     table: SymbolTable,
     errors: Vec<SymbolError>,
-    current_scope: Scope,
+    scope_stack: Vec<Scope>,
 }
 
 impl SymbolTableBuilder {
@@ -77,7 +77,7 @@ impl SymbolTableBuilder {
         SymbolTableBuilder {
             table: SymbolTable::default(),
             errors: vec![],
-            current_scope: Scope::Global,
+            scope_stack: vec![],
         }
     }
 
@@ -103,14 +103,8 @@ impl SymbolTableBuilder {
         FunctionSignature { name: f.id.value.clone(), params, ret_type }
     }
 
-    // ── Scope management ──
-
-    fn enter_scope(&mut self, scope: Scope) -> Scope {
-        std::mem::replace(&mut self.current_scope, scope)
-    }
-
-    fn exit_scope(&mut self, previous: Scope) {
-        self.current_scope = previous;
+    fn current_scope(&self) -> Scope {
+        self.scope_stack.last().cloned().unwrap_or(Scope::Global)
     }
 
     // ── Symbol helpers ──
@@ -124,8 +118,7 @@ impl SymbolTableBuilder {
     fn handle_assignment(&mut self, stmt: &AssignmentStatement) {
         if let AssignmentStatement::VarAssignmentStatement(v) = stmt {
             let name = dot_access_to_string(&v.var);
-            let scope = self.current_scope.clone();
-            // Add to symbol table only if not already declared
+            let scope = self.current_scope();
             if self.table.lookup(&name, &scope).is_none() {
                 if let Some(ty) = infer_type(&v.rvalue, &self.table, &scope) {
                     self.add_symbol(&name, ty);
@@ -135,7 +128,7 @@ impl SymbolTableBuilder {
     }
 
     fn add_symbol(&mut self, name: &str, ty: SymbolType) {
-        let scope = self.current_scope.clone();
+        let scope = self.current_scope();
         let duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
         if duplicate {
             self.errors.push(SymbolError::new(
@@ -155,20 +148,19 @@ impl AstVisitor for SymbolTableBuilder {
         match decl {
             ExternalDeclaration::DeclarationStatement(d) => self.handle_declaration(d),
             ExternalDeclaration::AssignmentStatement(a)  => self.handle_assignment(a),
-            // All other variants only need traversal — delegate to default impl
             _ => {}
         }
     }
 
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
-        let prev = self.enter_scope(Scope::Function(f.id.value.clone()));
-
-        // Add parameters as symbols inside the function scope
+        self.scope_stack.push(Scope::Function(f.id.value.clone()));
         for p in opt_iter(&f.parameters_list) {
             self.add_symbol(&p.id.value, convert_type_spec(&p._type));
         }
+    }
 
-        self.exit_scope(prev);
+    fn leave_function_definition(&mut self, _f: &FunctionDefinition) {
+        self.scope_stack.pop();
     }
 
     fn visit_statement(&mut self, stmt: &Statement) {
@@ -180,7 +172,6 @@ impl AstVisitor for SymbolTableBuilder {
     }
 
     fn visit_for(&mut self, f: &ForIterationStatement) {
-        // For loop index variable is always int
         self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
     }
 }

@@ -8,8 +8,11 @@ use crate::tml_actions::*;
 
 pub trait AstVisitor {
     fn visit_translation_unit(&mut self, _node: &TranslationUnit) {}
+    fn leave_translation_unit(&mut self, _node: &TranslationUnit) {}
     fn visit_external_declaration(&mut self, _node: &ExternalDeclaration) {}
+    fn leave_external_declaration(&mut self, _node: &ExternalDeclaration) {}
     fn visit_function_definition(&mut self, _node: &FunctionDefinition) {}
+    fn leave_function_definition(&mut self, _node: &FunctionDefinition) {}
     fn visit_statement_block(&mut self, _node: &StatementBlock) {}
     fn visit_statement(&mut self, _node: &Statement) {}
     fn visit_selection(&mut self, _node: &SelectionStatement) {}

@@ -2504,6 +2504,7 @@ impl TranslationUnit {
         for decl in &self.ext_decls {
             decl.accept(v);
         }
+        v.leave_translation_unit(self);
     }
 }
 
@@ -2519,6 +2520,7 @@ impl ExternalDeclaration {
             ExternalDeclaration::MacroIf(m)                 => m.body.accept(v),
             ExternalDeclaration::IoDeclarationStatement(_)  => {}
         }
+        v.leave_external_declaration(self);
     }
 }
 
@@ -2526,6 +2528,7 @@ impl FunctionDefinition {
     pub fn accept(&self, v: &mut dyn AstVisitor) {
         v.visit_function_definition(self);
         self.statement_block.accept(v);
+        v.leave_function_definition(self);
     }
 }
 
