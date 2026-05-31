@@ -1,8 +1,8 @@
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::formatter::INDENT;
 use crate::position::SourcePosition;
-use crate::symbol_table::{Scope, SymbolTable};
-use crate::visitor::{default_visit_statement, AstVisitor};
+use crate::symbol_table::SymbolTable;
+use crate::visitor::AstVisitor;
 use tml_parser::tml_actions::*;
 
 // ───────────────────────── Helper ─────────────────────────
@@ -40,7 +40,7 @@ impl EmptyBodyChecker {
     }
 
     pub fn check(mut self, unit: &TranslationUnit) -> Vec<EmptyBodyError> {
-        self.visit_translation_unit(unit);
+        unit.accept(&mut self);
         self.errors
     }
 
@@ -100,146 +100,120 @@ impl AstVisitor for EmptyBodyChecker {
             &format!("Function '{}' has an empty body — add 'pass' if intentional", f.id.value),
             pos, f.id.value.len(), &f.header_colon, SourcePosition::from_rustemo(&f.func_t.position)
         );
-        let scope = Scope::Function(f.id.value.clone());
-        self.visit_statement_block(&f.statement_block, &scope);
     }
 
-    // Skip all expression traversal — irrelevant for this check
-    fn visit_expression(&mut self, _expr: &Expression, _scope: &Scope) {}
+    fn visit_selection(&mut self, s: &SelectionStatement) {
+        let pos = SourcePosition::from_rustemo(&s.if_t.position);
+        self.check_block(
+            &s.if_statement_block,
+            "Empty 'if' body — add 'pass' if intentional",
+            pos, s.if_t.value.len(), &s.header_colon,
+        );
+        if let Some(elseifs) = &s.elseif_clause {
+            for clause in elseifs {
+                let pos = SourcePosition::from_rustemo(&clause.else_if_t.position);
+                self.check_block(
+                    &clause.elseif_statement_block,
+                    "Empty 'elseif' body — add 'pass' if intentional",
+                    pos, clause.else_if_t.value.len(), &clause.header_colon,
+                );
+            }
+        }
+        if let Some(else_c) = &s.else_clause {
+            let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
+            self.check_block(
+                &else_c.else_statement_block,
+                "Empty 'else' body — add 'pass' if intentional",
+                pos, else_c.else_t.value.len(), &else_c.header_colon,
+            );
+        }
+    }
 
-    fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
-        match stmt {
-            Statement::SelectionStatement(s) => {
-                let pos = SourcePosition::from_rustemo(&s.if_t.position);
-                self.check_block(
-                    &s.if_statement_block,
-                    "Empty 'if' body — add 'pass' if intentional",
-                    pos, s.if_t.value.len(), &s.header_colon,
-                );
-                if let Some(elseifs) = &s.elseif_clause {
-                    for clause in elseifs {
-                        let pos = SourcePosition::from_rustemo(&clause.else_if_t.position);
-                        self.check_block(
-                            &clause.elseif_statement_block,
-                            "Empty 'elseif' body — add 'pass' if intentional",
-                            pos, clause.else_if_t.value.len(), &clause.header_colon,
-                        );
-                    }
-                }
-                if let Some(else_c) = &s.else_clause {
-                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
-                    self.check_block(
-                        &else_c.else_statement_block,
-                        "Empty 'else' body — add 'pass' if intentional",
-                        pos, else_c.else_t.value.len(), &else_c.header_colon,
-                    );
-                }
-                self.visit_selection(s, scope);
-            }
-            Statement::IterationStatement(i) => {
-                match i {
-                    IterationStatement::ForIterationStatement(f) => {
-                        let pos = SourcePosition::from_rustemo(&f.for_t.position);
-                        self.check_block(
-                            &f.body.statement_block,
-                            &format!("Empty 'for {}' body — add 'pass' if intentional", f.header.idx.value),
-                            pos, f.for_t.value.len(), &f.header_colon,
-                        );
-                    }
-                    IterationStatement::WhileIterationStatement(w) => {
-                        let pos = SourcePosition::from_rustemo(&w.while_t.position);
-                        self.check_block(
-                            &w.statement_block,
-                            "Empty 'while' body — add 'pass' if intentional",
-                            pos, w.while_t.value.len(), &w.header_colon,
-                        );
-                    }
-                }
-                self.visit_iteration(i, scope);
-            }
-            Statement::ExistsStatement(e) => {
-                let pos = SourcePosition::from_rustemo(&e.exists_t.position);
-                self.check_block(
-                    &e.statement_block,
-                    "Empty 'exists' body — add 'pass' if intentional",
-                    pos, e.exists_t.value.len(), &e.header_colon,
-                );
-                if let Some(else_c) = &e.else_clause {
-                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
-                    self.check_block(
-                        &else_c.else_statement_block,
-                        "Empty 'exists else' body — add 'pass' if intentional",
-                        pos, else_c.else_t.value.len(), &else_c.header_colon,
-                    );
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            }
-            Statement::NotExistsStatement(e) => {
-                let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
-                let span = e.not_t.value.len() + 1 + e.exists_t.value.len();
-                self.check_block(
-                    &e.statement_block,
-                    "Empty 'not exists' body — add 'pass' if intentional",
-                    not_pos, span, &e.header_colon,
-                );
-                if let Some(else_c) = &e.else_clause {
-                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
-                    self.check_block(
-                        &else_c.else_statement_block,
-                        "Empty 'not exists else' body — add 'pass' if intentional",
-                        pos, else_c.else_t.value.len(), &else_c.header_colon,
-                    );
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            }
-            Statement::FeedthroughStatement(e) => {
-                let pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
-                self.check_block(
-                    &e.statement_block,
-                    "Empty 'feedthrough' body — add 'pass' if intentional",
-                    pos, e.feedthrough_t.value.len(), &e.header_colon,
-                );
-                if let Some(else_c) = &e.else_clause {
-                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
-                    self.check_block(
-                        &else_c.else_statement_block,
-                        "Empty 'feedthrough else' body — add 'pass' if intentional",
-                        pos, else_c.else_t.value.len(), &else_c.header_colon,
-                    );
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            }
-            Statement::NotFeedthroughStatement(e) => {
-                let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
-                let span = e.not_t.value.len() + 1 + e.feedthrough_t.value.len();
-                self.check_block(
-                    &e.statement_block,
-                    "Empty 'not feedthrough' body — add 'pass' if intentional",
-                    not_pos, span, &e.header_colon,
-                );
-                if let Some(else_c) = &e.else_clause {
-                    let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
-                    self.check_block(
-                        &else_c.else_statement_block,
-                        "Empty 'not feedthrough else' body — add 'pass' if intentional",
-                        pos, else_c.else_t.value.len(), &else_c.header_colon,
-                    );
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            }
-            Statement::MacroFor(m) => {
-                let pos = SourcePosition::from_rustemo(&m.body.for_t.position);
-                self.check_block(
-                    &m.body.body.statement_block,
-                    &format!("Empty 'for {}' body — add 'pass' if intentional", m.body.header.idx.value),
-                    pos, m.body.for_t.value.len(), &m.body.header_colon,
-                );
-                self.visit_for(&m.body, scope);
-            }
-            Statement::MacroIf(m) => {
-                self.visit_statement(&Statement::SelectionStatement(m.body.clone()), scope);
-            }
-            other => default_visit_statement(self, other, scope),
+    fn visit_for(&mut self, f: &ForIterationStatement) {
+        let pos = SourcePosition::from_rustemo(&f.for_t.position);
+        self.check_block(
+            &f.body.statement_block,
+            &format!("Empty 'for {}' body — add 'pass' if intentional", f.header.idx.value),
+            pos, f.for_t.value.len(), &f.header_colon,
+        );
+    }
+
+    fn visit_while(&mut self, w: &WhileIterationStatement) {
+        let pos = SourcePosition::from_rustemo(&w.while_t.position);
+        self.check_block(
+            &w.statement_block,
+            "Empty 'while' body — add 'pass' if intentional",
+            pos, w.while_t.value.len(), &w.header_colon,
+        );
+    }
+
+    fn visit_exists(&mut self, e: &ExistsStatement) {
+        let pos = SourcePosition::from_rustemo(&e.exists_t.position);
+        self.check_block(
+            &e.statement_block,
+            "Empty 'exists' body — add 'pass' if intentional",
+            pos, e.exists_t.value.len(), &e.header_colon,
+        );
+        if let Some(else_c) = &e.else_clause {
+            let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
+            self.check_block(
+                &else_c.else_statement_block,
+                "Empty 'exists else' body — add 'pass' if intentional",
+                pos, else_c.else_t.value.len(), &else_c.header_colon,
+            );
+        }
+    }
+
+    fn visit_not_exists(&mut self, e: &NotExistsStatement) {
+        let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
+        let span = e.not_t.value.len() + 1 + e.exists_t.value.len();
+        self.check_block(
+            &e.statement_block,
+            "Empty 'not exists' body — add 'pass' if intentional",
+            not_pos, span, &e.header_colon,
+        );
+        if let Some(else_c) = &e.else_clause {
+            let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
+            self.check_block(
+                &else_c.else_statement_block,
+                "Empty 'not exists else' body — add 'pass' if intentional",
+                pos, else_c.else_t.value.len(), &else_c.header_colon,
+            );
+        }
+    }
+
+    fn visit_feedthrough(&mut self, e: &FeedthroughStatement) {
+        let pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
+        self.check_block(
+            &e.statement_block,
+            "Empty 'feedthrough' body — add 'pass' if intentional",
+            pos, e.feedthrough_t.value.len(), &e.header_colon,
+        );
+        if let Some(else_c) = &e.else_clause {
+            let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
+            self.check_block(
+                &else_c.else_statement_block,
+                "Empty 'feedthrough else' body — add 'pass' if intentional",
+                pos, else_c.else_t.value.len(), &else_c.header_colon,
+            );
+        }
+    }
+
+    fn visit_not_feedthrough(&mut self, e: &NotFeedthroughStatement) {
+        let not_pos = SourcePosition::from_rustemo(&e.not_t.position);
+        let span = e.not_t.value.len() + 1 + e.feedthrough_t.value.len();
+        self.check_block(
+            &e.statement_block,
+            "Empty 'not feedthrough' body — add 'pass' if intentional",
+            not_pos, span, &e.header_colon,
+        );
+        if let Some(else_c) = &e.else_clause {
+            let pos = SourcePosition::from_rustemo(&else_c.else_t.position);
+            self.check_block(
+                &else_c.else_statement_block,
+                "Empty 'not feedthrough else' body — add 'pass' if intentional",
+                pos, else_c.else_t.value.len(), &else_c.header_colon,
+            );
         }
     }
 }
