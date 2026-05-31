@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use tml_parser::tml::TmlParser;
 use tml_tools::diagnostics::DiagnosticSeverity as ParserDiagnosticSeverity;
 use tml_tools::diagnostics::DiagnosticsRunner;
-use tml_tools::checkers::empty_body_checker::{EmptyBodyChecker, EmptyBodyDiagnosticSource};
-use tml_tools::collectors::folding_collector::{FoldingCollector, TmlFoldingRange};
-use tml_tools::checkers::function_call_checker::FunctionCallDiagnosticSource;
-use tml_tools::collectors::hoverable_collector::{HoverableCollector, HoverableKind, HoverableNode};
+use tml_tools::checkers::empty_body::{EmptyBodyChecker, EmptyBodyDiagnosticSource};
+use tml_tools::collectors::folding::{FoldingCollector, TmlFoldingRange};
+use tml_tools::checkers::function_call::FunctionCallDiagnosticSource;
+use tml_tools::collectors::hoverable::{HoverableCollector, HoverableKind, HoverableNode};
 use tml_tools::symbol_table::{Scope, SymbolTable, SymbolTableBuilder};
-use tml_tools::checkers::undefined_variable_checker::UndefinedVariableDiagnosticSource;
+use tml_tools::checkers::undefined_variable::UndefinedVariableDiagnosticSource;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tml_tools::collectors::block_span_collector::{find_indent, BlockSpan, BlockSpanCollector};
+use tml_tools::collectors::block_span::{find_indent, BlockSpan, BlockSpanCollector};
 use tml_tools::formatter::indent_str;
 
 struct Backend {

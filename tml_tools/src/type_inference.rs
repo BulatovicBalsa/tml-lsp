@@ -1,5 +1,5 @@
 use tml_parser::tml_actions::*;
-use crate::checkers::function_call_checker::{infer_builtin_return_type, lookup_builtin};
+use crate::checkers::function_call::{infer_builtin_return_type, lookup_builtin};
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
 use crate::visitor::{unpack_binary_bitwise_expressions, unpack_binary_math_expression};
 // ───────────────────────── Type promotion ─────────────────────────

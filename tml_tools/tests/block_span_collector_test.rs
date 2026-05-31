@@ -1,7 +1,7 @@
 use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
-use tml_tools::collectors::block_span_collector::{find_indent, BlockSpan, BlockSpanCollector};
+use tml_tools::collectors::block_span::{find_indent, BlockSpan, BlockSpanCollector};
 use tml_tools::formatter::INDENT;
 
 fn collect(src: &str) -> Vec<BlockSpan> {

@@ -1,7 +1,7 @@
 use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
-use tml_tools::checkers::empty_body_checker::{EmptyBodyChecker, EmptyBodyDiagnosticSource, EmptyBodyError};
+use tml_tools::checkers::empty_body::{EmptyBodyChecker, EmptyBodyDiagnosticSource, EmptyBodyError};
 use tml_tools::diagnostics::{Diagnostic, DiagnosticSeverity, DiagnosticsRunner};
 use tml_tools::symbol_table::SymbolTableBuilder;
 

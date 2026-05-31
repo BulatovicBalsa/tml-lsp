@@ -1,6 +1,6 @@
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
-use tml_tools::collectors::folding_collector::FoldingCollector;
+use tml_tools::collectors::folding::FoldingCollector;
 
 fn collect_folds(src: &str) -> Vec<(u32, u32)> {
     let normalized = src.replace("\r\n", "\n").replace('\r', "\n");
