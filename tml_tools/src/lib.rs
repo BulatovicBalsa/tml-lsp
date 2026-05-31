@@ -1,10 +1,8 @@
 pub mod formatter;
 pub mod symbol_table;
-pub mod hoverable_collector;
-pub mod folding_collector;
 pub mod type_inference;
 mod visitor;
 mod position;
 pub mod diagnostics;
-pub mod block_span_collector;
 pub mod checkers;
+pub mod collectors;
