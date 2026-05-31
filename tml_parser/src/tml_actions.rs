@@ -2,6 +2,7 @@
 /// All manual changes will be preserved except non-doc comments.
 use rustemo::{Context as RustemoContext, LineColumn, Position, Token as RustemoToken};
 use crate::keyword_token;
+use crate::visitor::AstVisitor;
 use super::tml::{TokenKind, Context};
 pub type Input = str;
 pub type Ctx<'i> = Context<'i, Input>;
@@ -2491,3 +2492,332 @@ keyword_token!(PassT, pass_t);
 keyword_token!(MacroT, macro_t);
 keyword_token!(BreakT, break_t);
 keyword_token!(InputT, input_t);
+
+// ───────────────────────── Visitor support ─────────────────────────
+//
+// accept() methods drive traversal — each node calls visitor hooks then
+// recurses into children. Implementors override only what they need.
+
+impl TranslationUnit {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_translation_unit(self);
+        for decl in &self.ext_decls {
+            decl.accept(v);
+        }
+    }
+}
+
+impl ExternalDeclaration {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_external_declaration(self);
+        match self {
+            ExternalDeclaration::FunctionDefinition(f)      => f.accept(v),
+            ExternalDeclaration::DeclarationStatement(d)    => d.rvalue.accept(v),
+            ExternalDeclaration::AssignmentStatement(s)     => s.accept(v),
+            ExternalDeclaration::IoWriteStatement(s)        => s.accept(v),
+            ExternalDeclaration::MacroFor(m)                => m.body.accept(v),
+            ExternalDeclaration::MacroIf(m)                 => m.body.accept(v),
+            ExternalDeclaration::IoDeclarationStatement(_)  => {}
+        }
+    }
+}
+
+impl FunctionDefinition {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_function_definition(self);
+        self.statement_block.accept(v);
+    }
+}
+
+impl StatementBlock {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_statement_block(self);
+        if let Some(stmts) = &self.statements {
+            for stmt in stmts {
+                stmt.accept(v);
+            }
+        }
+    }
+}
+
+impl Statement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_statement(self);
+        match self {
+            Statement::SelectionStatement(s)      => s.accept(v),
+            Statement::IterationStatement(i)      => i.accept(v),
+            Statement::ExistsStatement(e)         => e.accept(v),
+            Statement::NotExistsStatement(e)      => e.accept(v),
+            Statement::FeedthroughStatement(e)    => e.accept(v),
+            Statement::NotFeedthroughStatement(e) => e.accept(v),
+            Statement::AssignmentStatement(s)     => s.accept(v),
+            Statement::IoWriteStatement(s)        => s.accept(v),
+            Statement::DeclarationStatement(d)    => d.rvalue.accept(v),
+            Statement::FunctionCallStatement(s)   => s.call.accept(v),
+            Statement::JumpStatement(j)           => { v.visit_jump(j); j.accept(v); }
+            Statement::MacroFor(m)                => m.body.accept(v),
+            Statement::MacroIf(m)                 => m.body.accept(v),
+            Statement::IoDeclarationStatement(_)  => {}
+            Statement::NoopStatement(_)           => {}
+        }
+    }
+}
+
+impl SelectionStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_selection(self);
+        self.condition.accept(v);
+        self.if_statement_block.accept(v);
+        if let Some(elseifs) = &self.elseif_clause {
+            for clause in elseifs {
+                clause.accept(v);
+            }
+        }
+        if let Some(else_c) = &self.else_clause {
+            else_c.accept(v);
+        }
+    }
+}
+
+impl ElseIfClause {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_else_if_clause(self);
+        self.condition.accept(v);
+        self.elseif_statement_block.accept(v);
+    }
+}
+
+impl ElseClause {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_else_clause(self);
+        self.else_statement_block.accept(v);
+    }
+}
+
+impl IterationStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_iteration(self);
+        match self {
+            IterationStatement::ForIterationStatement(f)   => f.accept(v),
+            IterationStatement::WhileIterationStatement(w) => w.accept(v),
+        }
+    }
+}
+
+impl ForIterationStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_for(self);
+        match &self.header.iterator_expression {
+            IteratorExpression::Expression(e)      => e.accept(v),
+            IteratorExpression::RangeFromTo(r)     => { r.start.accept(v); r.stop.accept(v); }
+            IteratorExpression::RangeFromStepTo(r) => { r.start.accept(v); r.stop.accept(v); r.step.accept(v); }
+        }
+        self.body.statement_block.accept(v);
+    }
+}
+
+impl WhileIterationStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_while(self);
+        self.condition.accept(v);
+        self.statement_block.accept(v);
+    }
+}
+
+impl ExistsStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_exists(self);
+        self.statement_block.accept(v);
+        if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+    }
+}
+
+impl NotExistsStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_not_exists(self);
+        self.statement_block.accept(v);
+        if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+    }
+}
+
+impl FeedthroughStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_feedthrough(self);
+        self.statement_block.accept(v);
+        if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+    }
+}
+
+impl NotFeedthroughStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_not_feedthrough(self);
+        self.statement_block.accept(v);
+        if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+    }
+}
+
+impl AssignmentStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_assignment(self);
+        match self {
+            AssignmentStatement::VarAssignmentStatement(s)    => s.rvalue.accept(v),
+            AssignmentStatement::TensorAssignmentStatement(s) => s.rvalue.accept(v),
+        }
+    }
+}
+
+impl IoWriteStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_io_write(self);
+        match self {
+            IoWriteStatement::VarIoWriteStatement(s)    => s.rvalue.accept(v),
+            IoWriteStatement::TensorIoWriteStatement(s) => s.rvalue.accept(v),
+        }
+    }
+}
+
+impl JumpStatement {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        if let JumpStatement::ReturnStatement(ReturnStatement::ReturnValue(r)) = self {
+            r.ret_val.accept(v);
+        }
+    }
+}
+
+impl FunctionCall {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_function_call(self);
+        if let Some(args) = &self.arguments_list {
+            for arg in args {
+                let val = match arg {
+                    Argument::C1(a) => &a.value,
+                    Argument::C2(a) => &a.value,
+                };
+                val.accept(v);
+            }
+        }
+    }
+}
+
+impl Expression {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_expression(self);
+        match self {
+            Expression::MathExpression(e)     => e.accept(v),
+            Expression::LogicalExpression(e)  => e.accept(v),
+            Expression::BitwiseExpression(e)  => e.accept(v),
+            Expression::TypeCastExpression(e) => e.expr.accept(v),
+            Expression::NarrowExpression(e)   => e.expr.accept(v),
+            Expression::IoReadExpression(_)   => {}
+        }
+    }
+}
+
+impl MathExpression {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        match self {
+            MathExpression::PostfixExpression(p)    => p.accept(v),
+            MathExpression::BinaryMathExpression(b) => {
+                let (l, r) = binary_math_exprs(b);
+                l.accept(v); r.accept(v);
+            }
+            MathExpression::UnaryMathExpression(u)  => {
+                let e = match u { UnaryMathExpression::C1(c) => &c.expr, UnaryMathExpression::C2(c) => &c.expr };
+                e.accept(v);
+            }
+            MathExpression::ElvisExpression(e) => { e.left_expr.accept(v); e.right_expr.accept(v); }
+        }
+    }
+}
+
+impl LogicalExpression {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        match self {
+            LogicalExpression::BinaryRelationalExpression(b) => {
+                let (l, r) = binary_relational_exprs(b);
+                l.accept(v); r.accept(v);
+            }
+            LogicalExpression::BinaryLogicalExpression(b) => {
+                let (l, r) = match b {
+                    BinaryLogicalExpression::C1(c) => (&c.left_expr, &c.right_expr),
+                    BinaryLogicalExpression::C2(c) => (&c.left_expr, &c.right_expr),
+                };
+                l.accept(v); r.accept(v);
+            }
+            LogicalExpression::UnaryLogicalExpression(u) => u.expr.accept(v),
+        }
+    }
+}
+
+impl BitwiseExpression {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        match self {
+            BitwiseExpression::BinaryBitwiseExpression(b) => {
+                let (l, r) = binary_bitwise_exprs(b);
+                l.accept(v); r.accept(v);
+            }
+            BitwiseExpression::UnaryBitwiseExpression(u) => u.expr.accept(v),
+        }
+    }
+}
+
+impl PostfixExpression {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_postfix(self);
+        match self {
+            PostfixExpression::FunctionCall(f)        => f.accept(v),
+            PostfixExpression::TensorExpression(t)    => { t.expr.accept(v); }
+            PostfixExpression::TransposeExpression(t) => t.expr.accept(v),
+            PostfixExpression::ExprInParenthesis(e)   => e.expr.accept(v),
+            PostfixExpression::AttributeAccess(a)     => a.expr.accept(v),
+            PostfixExpression::TensorLiteral(t)       => {
+                for matrix in &t.expr.elements {
+                    for array in &matrix.elements {
+                        for element in array.elements.iter() {
+                            element.accept(v);
+                        }
+                    }
+                }
+            }
+            PostfixExpression::RValue(_)         => {}
+            PostfixExpression::Constant(_)       => {}
+            PostfixExpression::InputExpression(_) => {}
+        }
+    }
+}
+
+// ── Unpacking helpers ──
+
+fn binary_math_exprs(b: &BinaryMathExpression) -> (&Box<Expression>, &Box<Expression>) {
+    match b {
+        BinaryMathExpression::C1(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C2(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C3(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C4(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C5(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C6(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C7(c) => (&c.left_expr, &c.right_expr),
+        BinaryMathExpression::C8(c) => (&c.left_expr, &c.right_expr),
+    }
+}
+
+fn binary_relational_exprs(b: &BinaryRelationalExpression) -> (&Box<Expression>, &Box<Expression>) {
+    match b {
+        BinaryRelationalExpression::C1(c) => (&c.left_expr, &c.right_expr),
+        BinaryRelationalExpression::C2(c) => (&c.left_expr, &c.right_expr),
+        BinaryRelationalExpression::C3(c) => (&c.left_expr, &c.right_expr),
+        BinaryRelationalExpression::C4(c) => (&c.left_expr, &c.right_expr),
+        BinaryRelationalExpression::C5(c) => (&c.left_expr, &c.right_expr),
+        BinaryRelationalExpression::C6(c) => (&c.left_expr, &c.right_expr),
+    }
+}
+
+fn binary_bitwise_exprs(b: &BinaryBitwiseExpression) -> (&Box<Expression>, &Box<Expression>) {
+    match b {
+        BinaryBitwiseExpression::C1(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C2(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C3(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C4(c) => (&c.left_expr, &c.right_expr),
+        BinaryBitwiseExpression::C5(c) => (&c.left_expr, &c.right_expr),
+    }
+}

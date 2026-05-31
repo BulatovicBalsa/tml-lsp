@@ -1,6 +1,6 @@
 use tml_parser::tml_actions::*;
 use crate::type_inference::infer_type;
-use crate::visitor::{AstVisitor, opt_iter, default_visit_external_declaration};
+use crate::visitor::{AstVisitor, opt_iter};
 
 // ───────────────────────── Types ─────────────────────────
 
@@ -83,7 +83,7 @@ impl SymbolTableBuilder {
 
     pub fn build(mut self, unit: &TranslationUnit) -> (SymbolTable, Vec<SymbolError>) {
         self.prescan_functions(unit);
-        self.visit_translation_unit(unit);
+        unit.accept(&mut self);
         (self.table, self.errors)
     }
 
@@ -156,7 +156,7 @@ impl AstVisitor for SymbolTableBuilder {
             ExternalDeclaration::DeclarationStatement(d) => self.handle_declaration(d),
             ExternalDeclaration::AssignmentStatement(a)  => self.handle_assignment(a),
             // All other variants only need traversal — delegate to default impl
-            _ => default_visit_external_declaration(self, decl),
+            _ => {}
         }
     }
 
@@ -168,36 +168,20 @@ impl AstVisitor for SymbolTableBuilder {
             self.add_symbol(&p.id.value, convert_type_spec(&p._type));
         }
 
-        self.visit_statement_block(&f.statement_block, &self.current_scope.clone());
         self.exit_scope(prev);
     }
 
-    fn visit_statement(&mut self, stmt: &Statement, _scope: &Scope) {
-        let scope = self.current_scope.clone();
+    fn visit_statement(&mut self, stmt: &Statement) {
         match stmt {
-            Statement::DeclarationStatement(d)    => self.handle_declaration(d),
-            Statement::AssignmentStatement(a)     => self.handle_assignment(a),
-            Statement::SelectionStatement(s)      => self.visit_selection(s, &scope),
-            Statement::IterationStatement(i)      => self.visit_iteration(i, &scope),
-            Statement::ExistsStatement(e)         => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
-            Statement::NotExistsStatement(e)      => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
-            Statement::FeedthroughStatement(e)    => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
-            Statement::NotFeedthroughStatement(e) => self.visit_exists_body(&e.statement_block, &e.else_clause, &scope),
-            Statement::MacroFor(m)                => self.visit_for(&m.body, &scope),
-            Statement::MacroIf(m)                 => self.visit_selection(&m.body, &scope),
-            Statement::IoDeclarationStatement(_)
-            | Statement::JumpStatement(_)
-            | Statement::FunctionCallStatement(_)
-            | Statement::IoWriteStatement(_)
-            | Statement::NoopStatement(_)         => {}
+            Statement::DeclarationStatement(d) => self.handle_declaration(d),
+            Statement::AssignmentStatement(a)  => self.handle_assignment(a),
+            _ => {}
         }
     }
 
-    fn visit_for(&mut self, f: &ForIterationStatement, _scope: &Scope) {
+    fn visit_for(&mut self, f: &ForIterationStatement) {
         // For loop index variable is always int
         self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
-        let scope = self.current_scope.clone();
-        self.visit_statement_block(&f.body.statement_block, &scope);
     }
 }
 
