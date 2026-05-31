@@ -1,5 +1,5 @@
 use tml_parser::tml_actions::*;
-use crate::function_call_checker::lookup_builtin;
+use crate::checkers::function_call_checker::{infer_builtin_return_type, lookup_builtin};
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
 use crate::visitor::{unpack_binary_bitwise_expressions, unpack_binary_math_expression};
 // ───────────────────────── Type promotion ─────────────────────────
@@ -145,7 +145,7 @@ fn infer_function_call(f: &FunctionCall, table: &SymbolTable, scope: &Scope) -> 
     };
 
     if lookup_builtin(name).is_some() {
-        return crate::function_call_checker::infer_builtin_return_type(name, &args, table, scope);
+        return infer_builtin_return_type(name, &args, table, scope);
     }
 
     // User-defined function

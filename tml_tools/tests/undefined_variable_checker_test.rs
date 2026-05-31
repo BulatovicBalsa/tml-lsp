@@ -1,7 +1,7 @@
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::symbol_table::SymbolTableBuilder;
-use tml_tools::undefined_variable_checker::{CheckError, UndefinedVariableChecker};
+use tml_tools::checkers::undefined_variable_checker::{CheckError, UndefinedVariableChecker};
 
 fn check(src: &str) -> Vec<CheckError> {
     let parser = TmlParser::new();

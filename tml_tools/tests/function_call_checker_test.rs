@@ -1,7 +1,7 @@
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::symbol_table::SymbolTableBuilder;
-use tml_tools::function_call_checker::{CallError, FunctionCallChecker};
+use tml_tools::checkers::function_call_checker::{CallError, FunctionCallChecker};
 
 fn check(src: &str) -> Vec<CallError> {
     let parser = TmlParser::new();

@@ -1,9 +1,9 @@
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::diagnostics::{Diagnostic, DiagnosticSeverity, DiagnosticsRunner};
-use tml_tools::function_call_checker::FunctionCallDiagnosticSource;
+use tml_tools::checkers::function_call_checker::FunctionCallDiagnosticSource;
 use tml_tools::symbol_table::SymbolTableBuilder;
-use tml_tools::undefined_variable_checker::UndefinedVariableDiagnosticSource;
+use tml_tools::checkers::undefined_variable_checker::UndefinedVariableDiagnosticSource;
 
 fn run_diagnostics(src: &str) -> Vec<Diagnostic> {
     let normalized = src.replace("\r\n", "\n").replace('\r', "\n");

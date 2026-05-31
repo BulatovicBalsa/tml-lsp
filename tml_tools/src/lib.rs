@@ -1,12 +1,10 @@
 pub mod formatter;
 pub mod symbol_table;
-pub mod undefined_variable_checker;
-pub mod function_call_checker;
 pub mod hoverable_collector;
 pub mod folding_collector;
 pub mod type_inference;
 mod visitor;
 mod position;
 pub mod diagnostics;
-pub mod empty_body_checker;
 pub mod block_span_collector;
+pub mod checkers;
