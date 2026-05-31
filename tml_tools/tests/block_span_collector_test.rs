@@ -42,9 +42,8 @@ fn test_find_indent_exactly_on_header_line() {
 
 #[test]
 fn test_find_indent_exactly_on_end_line() {
-    // end_line is inclusive — cursor ON end line means we are still inside the block
     let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1 }];
-    assert_eq!(find_indent(&spans, 6), 1);
+    assert_eq!(find_indent(&spans, 6), 0);
 }
 
 #[test]
@@ -171,9 +170,9 @@ fn test_for_body_indent_level() {
     3, 2
 )]
 #[case(
-    // cursor on end line of fn — still inside (end_line inclusive)
+    // cursor on end line of fn - outside
     "fn foo():\n    pass\nend",
-    2, 1
+    2, 0
 )]
 #[case(
     // cursor before fn starts — global scope, no indent

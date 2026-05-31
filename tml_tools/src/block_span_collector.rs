@@ -14,7 +14,7 @@ pub struct BlockSpan {
 pub fn find_indent(spans: &[BlockSpan], line: u32) -> usize {
     spans
         .iter()
-        .filter(|span| span.header_line < line && line <= span.end_line)
+        .filter(|span| span.header_line < line && line < span.end_line)
         .map(|span| span.body_indent_level)
         .max()
         .unwrap_or(0)
