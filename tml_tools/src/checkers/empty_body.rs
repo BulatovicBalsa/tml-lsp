@@ -216,6 +216,24 @@ impl AstVisitor for EmptyBodyChecker {
             );
         }
     }
+
+    fn visit_macro_for(&mut self, m: &MacroFor) {
+        let pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        self.check_block(
+            &m.body.body.statement_block,
+            &format!("Empty 'macro for {}' body — add 'pass' if intentional", m.body.header.idx.value),
+            pos, m.macro_t.value.len(), &m.body.header_colon,
+        );
+    }
+
+    fn visit_macro_if(&mut self, m: &MacroIf) {
+        let pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        self.check_block(
+            &m.body.if_statement_block,
+            "Empty 'macro if' body — add 'pass' if intentional",
+            pos, m.macro_t.value.len(), &m.body.header_colon,
+        );
+    }
 }
 
 // ───────────────────────── DiagnosticSource impl ─────────────────────────

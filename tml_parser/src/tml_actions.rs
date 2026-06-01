@@ -2516,8 +2516,8 @@ impl ExternalDeclaration {
             ExternalDeclaration::DeclarationStatement(d)    => d.rvalue.accept(v),
             ExternalDeclaration::AssignmentStatement(s)     => s.accept(v),
             ExternalDeclaration::IoWriteStatement(s)        => s.accept(v),
-            ExternalDeclaration::MacroFor(m)                => m.body.accept(v),
-            ExternalDeclaration::MacroIf(m)                 => m.body.accept(v),
+            ExternalDeclaration::MacroFor(m)                => m.accept(v),
+            ExternalDeclaration::MacroIf(m)                 => m.accept(v),
             ExternalDeclaration::IoDeclarationStatement(_)  => {}
         }
         v.leave_external_declaration(self);
@@ -2558,8 +2558,8 @@ impl Statement {
             Statement::DeclarationStatement(d)    => d.rvalue.accept(v),
             Statement::FunctionCallStatement(s)   => s.call.accept(v),
             Statement::JumpStatement(j)           => { v.visit_jump(j); j.accept(v); }
-            Statement::MacroFor(m)                => m.body.accept(v),
-            Statement::MacroIf(m)                 => m.body.accept(v),
+            Statement::MacroFor(m)                => m.accept(v),
+            Statement::MacroIf(m)                 => m.accept(v),
             Statement::IoDeclarationStatement(_)  => {}
             Statement::NoopStatement(_)           => {}
         }
@@ -2800,6 +2800,20 @@ impl PostfixExpression {
             PostfixExpression::Constant(_)       => {}
             PostfixExpression::InputExpression(_) => {}
         }
+    }
+}
+
+impl MacroFor {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_macro_for(self);
+        self.body.accept(v);
+    }
+}
+
+impl MacroIf {
+    pub fn accept(&self, v: &mut dyn AstVisitor) {
+        v.visit_macro_if(self);
+        self.body.accept(v);
     }
 }
 

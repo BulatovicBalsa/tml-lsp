@@ -1,7 +1,12 @@
 use crate::formatter::INDENT;
 use crate::position::SourcePosition;
 use crate::visitor::AstVisitor;
-use tml_parser::tml_actions::{ExistsStatement, FeedthroughStatement, ForIterationStatement, FunctionDefinition, NotExistsStatement, NotFeedthroughStatement, SelectionStatement, TranslationUnit, WhileIterationStatement};
+use tml_parser::tml_actions::{
+    ExistsStatement, FeedthroughStatement, ForIterationStatement, FunctionDefinition,
+    MacroFor, MacroIf,
+    NotExistsStatement, NotFeedthroughStatement, SelectionStatement, TranslationUnit,
+    WhileIterationStatement,
+};
 
 #[derive(Debug, Clone)]
 pub struct BlockSpan {
@@ -135,6 +140,38 @@ impl AstVisitor for BlockSpanCollector {
         if let Some(else_clause) = &e.else_clause {
             let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
             self.register(&else_pos, &end_pos, else_pos.column);
+        }
+    }
+
+    fn visit_macro_for(&mut self, m: &MacroFor) {
+        // Use macro_t position as header, body's end_t as end
+        let header_pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        let end_pos = SourcePosition::from_rustemo(&m.body.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+    }
+
+    fn visit_macro_if(&mut self, m: &MacroIf) {
+        // Use macro_t position as header, body's end_t as end
+        let header_pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        let end_pos = SourcePosition::from_rustemo(&m.body.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+
+        if let Some(else_c) = &m.body.else_clause {
+            let else_pos = SourcePosition::from_rustemo(&else_c.else_t.position);
+            self.register(&else_pos, &end_pos, else_pos.column);
+        }
+
+        if let Some(elseifs) = &m.body.elseif_clause {
+            let elif_positions: Vec<SourcePosition> = elseifs
+                .iter()
+                .map(|clause| SourcePosition::from_rustemo(&clause.else_if_t.position))
+                .collect();
+
+            for (i, elif_pos) in elif_positions.iter().enumerate() {
+                if let Some(next_pos) = elif_positions.get(i + 1) {
+                    self.register(elif_pos, next_pos, elif_pos.column);
+                }
+            }
         }
     }
 }

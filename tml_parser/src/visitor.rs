@@ -31,4 +31,6 @@ pub trait AstVisitor {
     fn visit_expression(&mut self, _node: &Expression) {}
     fn visit_postfix(&mut self, _node: &PostfixExpression) {}
     fn visit_function_call(&mut self, _node: &FunctionCall) {}
+    fn visit_macro_for(&mut self, _node: &MacroFor) {}
+    fn visit_macro_if(&mut self, _node: &MacroIf) {}
 }
