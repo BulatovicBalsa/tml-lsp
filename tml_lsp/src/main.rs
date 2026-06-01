@@ -35,6 +35,7 @@ impl LanguageServer for Backend {
                     resolve_provider: Some(false),
                     ..Default::default()
                 }),
+                document_highlight_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -90,6 +91,10 @@ impl LanguageServer for Backend {
 
     async fn goto_definition(&self, params: GotoDefinitionParams) -> Result<Option<GotoDefinitionResponse>> {
         handlers::hover::goto_definition(self, params).await
+    }
+
+    async fn document_highlight(&self, params: DocumentHighlightParams) -> Result<Option<Vec<DocumentHighlight>>> {
+        handlers::highlight::document_highlight(self, params).await
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
