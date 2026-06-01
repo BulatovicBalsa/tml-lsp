@@ -1,4 +1,3 @@
-use crate::symbol_table::Scope::Global;
 use crate::visitor::AstVisitor;
 use tml_parser::tml_actions::*;
 
@@ -7,21 +6,6 @@ macro_rules! start_line {
         $e.header_colon.position.line_col
             .map(|lc| lc.line.saturating_sub(2))
             .unwrap_or(0) as u32
-    };
-}
-
-macro_rules! handle_stmt {
-    ($self:ident, $scope:ident, $e:ident) => {
-        {
-            let start_line = start_line!($e);
-
-            $self.try_add_range(start_line, &$e.end_t.position);
-            $self.visit_statement_block(&$e.statement_block, $scope);
-
-            if let Some(else_c) = &$e.else_clause {
-                $self.visit_statement_block(&else_c.else_statement_block, $scope);
-            }
-        }
     };
 }
 
@@ -49,14 +33,7 @@ impl<'a> FoldingCollector<'a> {
     }
 
     pub fn collect(mut self, unit: &TranslationUnit) -> Vec<TmlFoldingRange> {
-        for decl in &unit.ext_decls {
-            match decl {
-                ExternalDeclaration::FunctionDefinition(f) => self.visit_function(f),
-                ExternalDeclaration::MacroFor(m)           => self.visit_for(&m.body, &Global),
-                ExternalDeclaration::MacroIf(m)            => self.visit_selection(&m.body, &Global),
-                _ => {}
-            }
-        }
+        unit.accept(&mut self);
         self.ranges
     }
 
@@ -85,39 +62,16 @@ impl<'a> FoldingCollector<'a> {
             });
         }
     }
-
-    fn visit_function(&mut self, f: &FunctionDefinition) {
-        let start_line = start_line!(f);
-
-        self.try_add_range(start_line, &f.end_t.position);
-
-        let scope = crate::symbol_table::Scope::Function(f.id.value.clone());
-        self.visit_statement_block(&f.statement_block, &scope);
-    }
 }
 
 // ───────────────────────── AstVisitor impl ─────────────────────────
 
 impl<'a> AstVisitor for FoldingCollector<'a> {
-    fn visit_expression(&mut self, _expr: &Expression, _scope: &crate::symbol_table::Scope) {}
-
-    fn visit_statement(&mut self, stmt: &Statement, scope: &crate::symbol_table::Scope) {
-
-        match stmt {
-            Statement::SelectionStatement(s)  => self.visit_selection(s, scope),
-            Statement::IterationStatement(i)  => self.visit_iteration(i, scope),
-            Statement::ExistsStatement(e) => handle_stmt!(self, scope, e),
-            Statement::NotExistsStatement(e) => handle_stmt!(self, scope, e),
-            Statement::FeedthroughStatement(e) => handle_stmt!(self, scope, e),
-            Statement::NotFeedthroughStatement(e) => handle_stmt!(self, scope, e),
-            Statement::MacroFor(m) => self.visit_for(&m.body, scope),
-            Statement::MacroIf(m)  => self.visit_selection(&m.body, scope),
-            // Other statements don't create folding ranges
-            _ => {}
-        }
+    fn visit_function_definition(&mut self, f: &FunctionDefinition) {
+        self.try_add_range(start_line!(f), &f.end_t.position);
     }
 
-    fn visit_selection(&mut self, s: &SelectionStatement, scope: &crate::symbol_table::Scope) {
+    fn visit_selection(&mut self, s: &SelectionStatement) {
         let mut if_end_line = 0;
         if let Some(elseifs) = &s.elseif_clause {
             for index in 0..elseifs.len() {
@@ -135,7 +89,6 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
                     let next_clause = &elseifs[index + 1];
                     self.try_add_range_end_line(start_line!(clause), start_line!(next_clause) - 1);
                 }
-                self.visit_statement_block(&clause.elseif_statement_block, scope);
             }
         }
         if let Some(else_c) = &s.else_clause {
@@ -143,7 +96,6 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
                 if_end_line = start_line!(else_c);
             }
             self.try_add_range(start_line!(else_c), &s.end_t.position);
-            self.visit_statement_block(&else_c.else_statement_block, scope);
         }
 
         if if_end_line == 0 {
@@ -151,24 +103,29 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
         } else {
             self.try_add_range_end_line(start_line!(s), if_end_line - 1);
         }
-        self.visit_statement_block(&s.if_statement_block, scope);
     }
 
-    fn visit_iteration(&mut self, i: &IterationStatement, scope: &crate::symbol_table::Scope) {
-        match i {
-            IterationStatement::ForIterationStatement(f) => self.visit_for(f, scope),
-            IterationStatement::WhileIterationStatement(w) => {
-                let start_line = start_line!(w);
-                self.try_add_range(start_line, &w.end_t.position);
-                self.visit_statement_block(&w.statement_block, scope);
-            }
-        }
+    fn visit_for(&mut self, f: &ForIterationStatement) {
+        self.try_add_range(start_line!(f), &f.end_t.position);
     }
 
-    fn visit_for(&mut self, f: &ForIterationStatement, scope: &crate::symbol_table::Scope) {
-        let start_line = start_line!(f);
+    fn visit_while(&mut self, w: &WhileIterationStatement) {
+        self.try_add_range(start_line!(w), &w.end_t.position);
+    }
 
-        self.try_add_range(start_line, &f.end_t.position);
-        self.visit_statement_block(&f.body.statement_block, scope);
+    fn visit_exists(&mut self, e: &ExistsStatement) {
+        self.try_add_range(start_line!(e), &e.end_t.position);
+    }
+
+    fn visit_not_exists(&mut self, e: &NotExistsStatement) {
+        self.try_add_range(start_line!(e), &e.end_t.position);
+    }
+
+    fn visit_feedthrough(&mut self, e: &FeedthroughStatement) {
+        self.try_add_range(start_line!(e), &e.end_t.position);
+    }
+
+    fn visit_not_feedthrough(&mut self, e: &NotFeedthroughStatement) {
+        self.try_add_range(start_line!(e), &e.end_t.position);
     }
 }

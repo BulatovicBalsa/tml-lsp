@@ -146,15 +146,20 @@ impl CallError {
 pub struct FunctionCallChecker<'a> {
     table: &'a SymbolTable,
     errors: Vec<CallError>,
+    scope_stack: Vec<Scope>,
 }
 
 impl<'a> FunctionCallChecker<'a> {
     pub fn new(table: &'a SymbolTable) -> Self {
-        FunctionCallChecker { table, errors: vec![] }
+        FunctionCallChecker { table, errors: vec![], scope_stack: vec![] }
+    }
+
+    pub fn current_scope(&self) -> Scope {
+        self.scope_stack.last().cloned().unwrap_or(Scope::Global)
     }
 
     pub fn check(mut self, unit: &TranslationUnit) -> Vec<CallError> {
-        self.visit_translation_unit(unit);
+        unit.accept(&mut self);
         self.errors
     }
 }
@@ -162,7 +167,16 @@ impl<'a> FunctionCallChecker<'a> {
 // ───────────────────────── AstVisitor impl ─────────────────────────
 
 impl<'a> AstVisitor for FunctionCallChecker<'a> {
-    fn visit_function_call(&mut self, call: &FunctionCall, scope: &Scope) {
+    fn visit_function_definition(&mut self, f: &FunctionDefinition) {
+        self.scope_stack.push(Scope::Function(f.id.value.clone()));
+    }
+
+    fn leave_function_definition(&mut self, _f: &FunctionDefinition) {
+        self.scope_stack.pop();
+    }
+
+    fn visit_function_call(&mut self, call: &FunctionCall) {
+        let scope = self.current_scope();
         let name = &call.id.value;
         let position = SourcePosition::from_rustemo(&call.id.position);
 
@@ -181,11 +195,6 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
                     position: SourcePosition::from_rustemo(&a.id.position),
                 });
             }
-            let val = match arg {
-                Argument::C1(a) => &a.value,
-                Argument::C2(a) => &a.value,
-            };
-            self.visit_expression(val, scope);
         }
 
         if is_entry_function(name) {

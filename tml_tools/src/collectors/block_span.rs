@@ -1,8 +1,7 @@
 use crate::formatter::INDENT;
 use crate::position::SourcePosition;
-use crate::symbol_table::Scope;
-use crate::visitor::{default_visit_statement, AstVisitor};
-use tml_parser::tml_actions::{FunctionDefinition, IterationStatement, Statement, TranslationUnit};
+use crate::visitor::AstVisitor;
+use tml_parser::tml_actions::{ExistsStatement, FeedthroughStatement, ForIterationStatement, FunctionDefinition, NotExistsStatement, NotFeedthroughStatement, SelectionStatement, TranslationUnit, WhileIterationStatement};
 
 #[derive(Debug, Clone)]
 pub struct BlockSpan {
@@ -30,7 +29,7 @@ impl BlockSpanCollector {
     }
 
     pub fn collect(mut self, unit: &TranslationUnit) -> Vec<BlockSpan> {
-        self.visit_translation_unit(unit);
+        unit.accept(&mut self);
         self.spans
     }
 
@@ -53,110 +52,89 @@ impl AstVisitor for BlockSpanCollector {
         let header_pos = SourcePosition::from_rustemo(&f.func_t.position);
         let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
         self.register(&header_pos, &end_pos, 0);
-        let scope = Scope::Function(f.id.value.clone());
-        self.visit_statement_block(&f.statement_block, &scope);
     }
 
-    fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
-        match stmt {
-            Statement::SelectionStatement(s) => {
-                let if_pos = SourcePosition::from_rustemo(&s.if_t.position);
-                let end_pos = SourcePosition::from_rustemo(&s.end_t.position);
+    fn visit_selection(&mut self, s: &SelectionStatement) {
+        let if_pos = SourcePosition::from_rustemo(&s.if_t.position);
+        let end_pos = SourcePosition::from_rustemo(&s.end_t.position);
 
-                self.register(&if_pos, &end_pos, if_pos.column);
+        self.register(&if_pos, &end_pos, if_pos.column);
 
-                let else_pos_opt = s.else_clause.as_ref().map(|else_clause| {
-                    SourcePosition::from_rustemo(&else_clause.else_t.position)
-                });
+        let else_pos_opt = s.else_clause.as_ref().map(|else_clause| {
+            SourcePosition::from_rustemo(&else_clause.else_t.position)
+        });
 
-                let elif_pos_opts = s.elseif_clause.as_ref().map(|else_ifs| {
-                    else_ifs.iter().map(|else_if| {
-                        SourcePosition::from_rustemo(&else_if.else_if_t.position)
-                    }).collect::<Vec<_>>()
-                });
+        let elif_pos_opts = s.elseif_clause.as_ref().map(|else_ifs| {
+            else_ifs.iter().map(|else_if| {
+                SourcePosition::from_rustemo(&else_if.else_if_t.position)
+            }).collect::<Vec<_>>()
+        });
 
-                if let Some(else_pos) = else_pos_opt {
-                    self.register(&else_pos, &end_pos, else_pos.column);
-                }
+        if let Some(else_pos) = else_pos_opt {
+            self.register(&else_pos, &end_pos, else_pos.column);
+        }
 
-                if let Some(else_if_cols) = elif_pos_opts {
-                    for index in 0..else_if_cols.len() {
-                        let else_if_pos = &else_if_cols[index];
-                        let next_else_if_pos_opt = else_if_cols.get(index + 1).cloned();
+        if let Some(else_if_cols) = elif_pos_opts {
+            for index in 0..else_if_cols.len() {
+                let else_if_pos = &else_if_cols[index];
+                let next_else_if_pos_opt = else_if_cols.get(index + 1).cloned();
 
-                        if let Some(next_else_if_pos) = next_else_if_pos_opt {
-                            self.register(&else_if_pos, &next_else_if_pos, else_if_pos.column);
-                        }
-                    }
+                if let Some(next_else_if_pos) = next_else_if_pos_opt {
+                    self.register(&else_if_pos, &next_else_if_pos, else_if_pos.column);
                 }
+            }
+        }
+    }
 
-                self.visit_selection(s, scope);
-            },
-            Statement::IterationStatement(i) => {
-                match i {
-                    IterationStatement::ForIterationStatement(f) => {
-                        let header_pos = SourcePosition::from_rustemo(&f.for_t.position);
-                        let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
-                        self.register(&header_pos, &end_pos, header_pos.column);
-                    },
-                    IterationStatement::WhileIterationStatement(w) => {
-                        let header_pos = SourcePosition::from_rustemo(&w.while_t.position);
-                        let end_pos = SourcePosition::from_rustemo(&w.end_t.position);
-                        self.register(&header_pos, &end_pos, header_pos.column);
-                    }
-                }
-                self.visit_iteration(i, scope);
-            },
-            Statement::ExistsStatement(e) => {
-                let header_pos = SourcePosition::from_rustemo(&e.exists_t.position);
-                let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
-                self.register(&header_pos, &end_pos, header_pos.column);
-                if let Some(else_clause) = &e.else_clause {
-                    let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
-                    self.register(&else_pos, &end_pos, else_pos.column);
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            },
-            Statement::NotExistsStatement(e) => {
-                let header_pos = SourcePosition::from_rustemo(&e.not_t.position);
-                let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
-                self.register(&header_pos, &end_pos, header_pos.column);
-                if let Some(else_clause) = &e.else_clause {
-                    let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
-                    self.register(&else_pos, &end_pos, else_pos.column);
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            },
-            Statement::FeedthroughStatement(e) => {
-                let header_pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
-                let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
-                self.register(&header_pos, &end_pos, header_pos.column);
-                if let Some(else_clause) = &e.else_clause {
-                    let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
-                    self.register(&else_pos, &end_pos, else_pos.column);
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            },
-            Statement::NotFeedthroughStatement(e) => {
-                let header_pos = SourcePosition::from_rustemo(&e.not_t.position);
-                let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
-                self.register(&header_pos, &end_pos, header_pos.column);
-                if let Some(else_clause) = &e.else_clause {
-                    let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
-                    self.register(&else_pos, &end_pos, else_pos.column);
-                }
-                self.visit_exists_body(&e.statement_block, &e.else_clause, scope);
-            },
-            Statement::MacroFor(m) => {
-                let header_pos = SourcePosition::from_rustemo(&m.macro_t.position);
-                let end_pos = SourcePosition::from_rustemo(&m.body.end_t.position);
-                self.register(&header_pos, &end_pos, header_pos.column);
-                self.visit_for(&m.body, scope);
-            },
-            Statement::MacroIf(m) => {
-                self.visit_statement(&Statement::SelectionStatement(m.body.clone()), scope);
-            },
-            other => default_visit_statement(self, other, scope),
+    fn visit_for(&mut self, f: &ForIterationStatement) {
+        let header_pos = SourcePosition::from_rustemo(&f.for_t.position);
+        let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+    }
+
+    fn visit_while(&mut self, w: &WhileIterationStatement) {
+        let header_pos = SourcePosition::from_rustemo(&w.while_t.position);
+        let end_pos = SourcePosition::from_rustemo(&w.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+    }
+
+    fn visit_exists(&mut self, e: &ExistsStatement) {
+        let header_pos = SourcePosition::from_rustemo(&e.exists_t.position);
+        let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+        if let Some(else_clause) = &e.else_clause {
+            let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
+            self.register(&else_pos, &end_pos, else_pos.column);
+        }
+    }
+
+    fn visit_not_exists(&mut self, e: &NotExistsStatement) {
+        let header_pos = SourcePosition::from_rustemo(&e.not_t.position);
+        let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+        if let Some(else_clause) = &e.else_clause {
+            let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
+            self.register(&else_pos, &end_pos, else_pos.column);
+        }
+    }
+
+    fn visit_feedthrough(&mut self, e: &FeedthroughStatement) {
+        let header_pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
+        let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+        if let Some(else_clause) = &e.else_clause {
+            let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
+            self.register(&else_pos, &end_pos, else_pos.column);
+        }
+    }
+
+    fn visit_not_feedthrough(&mut self, e: &NotFeedthroughStatement) {
+        let header_pos = SourcePosition::from_rustemo(&e.not_t.position);
+        let end_pos = SourcePosition::from_rustemo(&e.end_t.position);
+        self.register(&header_pos, &end_pos, header_pos.column);
+        if let Some(else_clause) = &e.else_clause {
+            let else_pos = SourcePosition::from_rustemo(&else_clause.else_t.position);
+            self.register(&else_pos, &end_pos, else_pos.column);
         }
     }
 }

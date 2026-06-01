@@ -1,7 +1,6 @@
-use tml_parser::tml_actions::*;
 use crate::checkers::function_call::{infer_builtin_return_type, lookup_builtin};
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
-use crate::visitor::{unpack_binary_bitwise_expressions, unpack_binary_math_expression};
+use tml_parser::tml_actions::*;
 // ───────────────────────── Type promotion ─────────────────────────
 
 /// Returns the more general of two numeric types.
@@ -64,7 +63,7 @@ fn infer_math(e: &MathExpression, table: &SymbolTable, scope: &Scope) -> Option<
 }
 
 fn infer_binary_math(b: &BinaryMathExpression, table: &SymbolTable, scope: &Scope) -> Option<SymbolType> {
-    let (left, right) = unpack_binary_math_expression(b);
+    let (left, right) = binary_math_exprs(b);
     let left_ty = infer_type(left, table, scope)?;
     let right_ty = infer_type(right, table, scope)?;
     Some(promote(&left_ty, &right_ty))
@@ -162,7 +161,7 @@ fn infer_bitwise(e: &BitwiseExpression, table: &SymbolTable, scope: &Scope) -> O
             infer_type(&u.expr, table, scope)
         }
         BitwiseExpression::BinaryBitwiseExpression(b) => {
-            let (left, right) = unpack_binary_bitwise_expressions(b);
+            let (left, right) = binary_bitwise_exprs(b);
             let left_ty = infer_type(left, table, scope)?;
             let right_ty = infer_type(right, table, scope)?;
             Some(promote(&left_ty, &right_ty))

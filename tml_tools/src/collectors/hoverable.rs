@@ -1,7 +1,7 @@
 use tml_parser::tml_actions::*;
 use crate::position::SourcePosition;
 use crate::symbol_table::{convert_type_spec, Scope, SymbolTable, SymbolType};
-use crate::visitor::{AstVisitor, opt_iter, default_visit_external_declaration, default_visit_statement, default_visit_postfix};
+use crate::visitor::{AstVisitor, opt_iter};
 
 // ───────────────────────── HoverableKind ─────────────────────────
 
@@ -100,15 +100,20 @@ pub fn format_type(ty: &SymbolType) -> String {
 
 pub struct HoverableCollector {
     pub nodes: Vec<HoverableNode>,
+    scope_stack: Vec<Scope>,
 }
 
 impl HoverableCollector {
     pub fn new() -> Self {
-        HoverableCollector { nodes: vec![] }
+        HoverableCollector { nodes: vec![], scope_stack: vec![] }
+    }
+
+    pub fn current_scope(&self) -> Scope {
+        self.scope_stack.last().cloned().unwrap_or(Scope::Global)
     }
 
     pub fn collect(mut self, unit: &TranslationUnit) -> Vec<HoverableNode> {
-        self.visit_translation_unit(unit);
+        unit.accept(&mut self);
         self.nodes
     }
 
@@ -148,7 +153,6 @@ impl AstVisitor for HoverableCollector {
         if let ExternalDeclaration::DeclarationStatement(d) = decl {
             self.push_decl(d, &Scope::Global);
         }
-        default_visit_external_declaration(self, decl);
     }
 
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
@@ -173,30 +177,34 @@ impl AstVisitor for HoverableCollector {
             });
         }
 
-        self.visit_statement_block(&f.statement_block, &scope);
+        self.scope_stack.push(Scope::Function(f.id.value.clone()));
     }
 
-    fn visit_statement(&mut self, stmt: &Statement, scope: &Scope) {
+    fn leave_function_definition(&mut self, _f: &FunctionDefinition) {
+        self.scope_stack.pop();
+    }
+
+    fn visit_statement(&mut self, stmt: &Statement) {
+        let scope = self.current_scope();
         match stmt {
             Statement::DeclarationStatement(d) => {
-                self.push_decl(d, scope);
-                self.visit_expression(&d.rvalue, scope);
+                self.push_decl(d, &scope);
             }
             Statement::AssignmentStatement(AssignmentStatement::VarAssignmentStatement(v)) => {
                 if let Some(first_id) = v.var.names.first() {
-                    self.push_variable_ref(first_id, scope);
+                    self.push_variable_ref(first_id, &scope);
                 }
-                self.visit_expression(&v.rvalue, scope);
             }
-            other => default_visit_statement(self, other, scope),
+            _ => {}
         }
     }
 
-    fn visit_postfix(&mut self, e: &PostfixExpression, scope: &Scope) {
+    fn visit_postfix(&mut self, e: &PostfixExpression) {
+        let scope = self.current_scope();
         match e {
             PostfixExpression::RValue(r) => {
                 if let Some(first_id) = r._ref.names.first() {
-                    self.push_variable_ref(first_id, scope);
+                    self.push_variable_ref(first_id, &scope);
                 }
             }
             PostfixExpression::FunctionCall(f) => {
@@ -205,9 +213,8 @@ impl AstVisitor for HoverableCollector {
                     position: SourcePosition::from_rustemo(&f.id.position),
                     scope: scope.clone(),
                 });
-                self.visit_function_call(f, scope);
             }
-            other => default_visit_postfix(self, other, scope),
+            _ => {}
         }
     }
 }

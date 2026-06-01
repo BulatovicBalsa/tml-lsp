@@ -2769,7 +2769,21 @@ impl PostfixExpression {
         v.visit_postfix(self);
         match self {
             PostfixExpression::FunctionCall(f)        => f.accept(v),
-            PostfixExpression::TensorExpression(t)    => { t.expr.accept(v); }
+            PostfixExpression::TensorExpression(t)    => {
+                t.expr.accept(v);
+                for idx in &t.index.index_expression_list {
+                    match idx {
+                        IndexExpression::C1(e) => e.expr.accept(v),
+                        IndexExpression::C2(e) => match &e.expr {
+                            RangeExpression::RangeFromTo(r)     => { r.start.accept(v); r.stop.accept(v); }
+                            RangeExpression::RangeFrom(r)       => r.start.accept(v),
+                            RangeExpression::RangeTo(r)         => r.stop.accept(v),
+                            RangeExpression::RangeFromStepTo(r) => { r.start.accept(v); r.stop.accept(v); r.step.accept(v); }
+                            RangeExpression::RangeAll(_)        => {}
+                        },
+                    }
+                }
+            }
             PostfixExpression::TransposeExpression(t) => t.expr.accept(v),
             PostfixExpression::ExprInParenthesis(e)   => e.expr.accept(v),
             PostfixExpression::AttributeAccess(a)     => a.expr.accept(v),
@@ -2791,7 +2805,7 @@ impl PostfixExpression {
 
 // ── Unpacking helpers ──
 
-fn binary_math_exprs(b: &BinaryMathExpression) -> (&Box<Expression>, &Box<Expression>) {
+pub fn binary_math_exprs(b: &BinaryMathExpression) -> (&Box<Expression>, &Box<Expression>) {
     match b {
         BinaryMathExpression::C1(c) => (&c.left_expr, &c.right_expr),
         BinaryMathExpression::C2(c) => (&c.left_expr, &c.right_expr),
@@ -2804,7 +2818,7 @@ fn binary_math_exprs(b: &BinaryMathExpression) -> (&Box<Expression>, &Box<Expres
     }
 }
 
-fn binary_relational_exprs(b: &BinaryRelationalExpression) -> (&Box<Expression>, &Box<Expression>) {
+pub fn binary_relational_exprs(b: &BinaryRelationalExpression) -> (&Box<Expression>, &Box<Expression>) {
     match b {
         BinaryRelationalExpression::C1(c) => (&c.left_expr, &c.right_expr),
         BinaryRelationalExpression::C2(c) => (&c.left_expr, &c.right_expr),
@@ -2815,7 +2829,7 @@ fn binary_relational_exprs(b: &BinaryRelationalExpression) -> (&Box<Expression>,
     }
 }
 
-fn binary_bitwise_exprs(b: &BinaryBitwiseExpression) -> (&Box<Expression>, &Box<Expression>) {
+pub fn binary_bitwise_exprs(b: &BinaryBitwiseExpression) -> (&Box<Expression>, &Box<Expression>) {
     match b {
         BinaryBitwiseExpression::C1(c) => (&c.left_expr, &c.right_expr),
         BinaryBitwiseExpression::C2(c) => (&c.left_expr, &c.right_expr),
