@@ -1,8 +1,8 @@
+use crate::backend::Backend;
+use tml_tools::collectors::block_span::{find_enclosing_block, find_indent, BlockKind};
+use tml_tools::formatter::INDENT;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
-use tml_tools::collectors::block_span::{BlockKind, find_indent, find_enclosing_block, find_body_col};
-use tml_tools::formatter::INDENT;
-use crate::backend::Backend;
 
 // ───────────────────────── Snippet definition ─────────────────────────
 
@@ -131,10 +131,10 @@ pub async fn completion(
         .and_then(|s| find_enclosing_block(s, line))
         .map(|b| matches!(b.kind, BlockKind::If | BlockKind::Elseif | BlockKind::MacroIf))
         .unwrap_or(false);
-    let inner_indent = " ".repeat(
-        spans.get(&uri).map(|s| find_body_col(s, line)).unwrap_or(INDENT.len())
-    );
+
     drop(spans);
+
+    let inner_indent = INDENT.to_string();
 
     let items: Vec<CompletionItem> = SNIPPETS
         .iter()
