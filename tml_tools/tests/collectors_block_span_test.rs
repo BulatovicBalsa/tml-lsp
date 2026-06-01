@@ -1,7 +1,7 @@
 use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
-use tml_tools::collectors::block_span::{find_indent, BlockSpan, BlockSpanCollector};
+use tml_tools::collectors::block_span::{find_indent, find_enclosing_block, BlockKind, BlockSpan, BlockSpanCollector};
 use tml_tools::formatter::INDENT;
 
 fn collect(src: &str) -> Vec<BlockSpan> {
@@ -21,64 +21,54 @@ fn test_find_indent_empty_spans() {
 
 #[test]
 fn test_find_indent_before_any_block() {
-    let spans = vec![BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1 }];
-    // Line 3 is before the block opens at line 5
+    let spans = vec![BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 3), 0);
 }
 
 #[test]
 fn test_find_indent_after_block_closes() {
-    let spans = vec![BlockSpan { header_line: 0, end_line: 5, body_indent_level: 1 }];
-    // Line 6 is after the block closes at line 5
+    let spans = vec![BlockSpan { header_line: 0, end_line: 5, body_indent_level: 1, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 6), 0);
 }
 
 #[test]
 fn test_find_indent_exactly_on_header_line() {
-    // header_line is exclusive — cursor ON header line means we are NOT inside the block yet
-    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1 }];
+    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 2), 0);
 }
 
 #[test]
 fn test_find_indent_exactly_on_end_line() {
-    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1 }];
+    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 6), 0);
 }
 
 #[test]
 fn test_find_indent_inside_single_block() {
-    let spans = vec![BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1 }];
+    let spans = vec![BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 5), 1);
 }
 
 #[test]
 fn test_find_indent_nested_blocks_takes_deepest() {
     let spans = vec![
-        BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1 },
-        BlockSpan { header_line: 2, end_line: 8,  body_indent_level: 2 },
-        BlockSpan { header_line: 4, end_line: 6,  body_indent_level: 3 },
+        BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1, kind: BlockKind::Function },
+        BlockSpan { header_line: 2, end_line: 8,  body_indent_level: 2, kind: BlockKind::If },
+        BlockSpan { header_line: 4, end_line: 6,  body_indent_level: 3, kind: BlockKind::For },
     ];
-    // Line 5 is inside all three — should return deepest (3)
     assert_eq!(find_indent(&spans, 5), 3);
-    // Line 3 is inside first two only — should return 2
     assert_eq!(find_indent(&spans, 3), 2);
-    // Line 1 is inside only the outermost — should return 1
     assert_eq!(find_indent(&spans, 1), 1);
 }
 
 #[test]
 fn test_find_indent_sibling_blocks_not_mixed() {
     let spans = vec![
-        BlockSpan { header_line: 0, end_line: 4,  body_indent_level: 1 },
-        BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1 },
+        BlockSpan { header_line: 0, end_line: 4,  body_indent_level: 1, kind: BlockKind::Function },
+        BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1, kind: BlockKind::Function },
     ];
-    // Line 3 is in first block only
     assert_eq!(find_indent(&spans, 3), 1);
-    // Line 7 is in second block only
     assert_eq!(find_indent(&spans, 7), 1);
-    // Line 5 is the header of second block — not inside it yet
-    // (but IS inside... wait, end of first is 4, second starts at 5 — gap at line 5 header)
     assert_eq!(find_indent(&spans, 5), 0);
 }
 
@@ -244,4 +234,96 @@ fn test_find_indent_inside_last_elseif_block() {
         level, 1,
         "Cursor inside last elseif block should be at level 1, spans: {:?}", spans
     );
+}
+
+// ───────────────────────── BlockKind ─────────────────────────
+
+#[rstest]
+#[case("fn foo():\n    pass\nend",                               BlockKind::Function)]
+#[case("fn foo():\n    if true:\n        pass\n    end\nend",    BlockKind::If)]
+#[case("fn foo():\n    for i=0:5:\n        pass\n    end\nend",  BlockKind::For)]
+#[case("fn foo():\n    int x=1\n    while x>0:\n        pass\n    end\nend", BlockKind::While)]
+fn test_block_kind(#[case] src: &str, #[case] expected_kind: BlockKind) {
+    let spans = collect(src);
+    let found = spans.iter().any(|s| s.kind == expected_kind);
+    assert!(found, "Expected span with kind {:?} in: {:?}", expected_kind, spans);
+}
+
+#[test]
+fn test_if_else_span_kinds() {
+    let src = "fn foo():\n    if true:\n        pass\n    else:\n        pass\n    end\nend";
+    let spans = collect(src);
+    assert!(spans.iter().any(|s| s.kind == BlockKind::If));
+    assert!(spans.iter().any(|s| s.kind == BlockKind::Else));
+}
+
+#[test]
+fn test_if_elseif_span_kinds() {
+    let src = "fn foo():\n    if true:\n        pass\n    elseif false:\n        pass\n    end\nend";
+    let spans = collect(src);
+    assert!(spans.iter().any(|s| s.kind == BlockKind::If));
+    assert!(spans.iter().any(|s| s.kind == BlockKind::Elseif));
+}
+
+// ───────────────────────── find_enclosing_block ─────────────────────────
+
+#[test]
+fn test_enclosing_block_none_outside() {
+    let spans = collect("fn foo():\n    pass\nend");
+    // Line 3 is outside — no enclosing block
+    assert!(find_enclosing_block(&spans, 3).is_none());
+}
+
+#[test]
+fn test_enclosing_block_function() {
+    let spans = collect("fn foo():\n    pass\nend");
+    let block = find_enclosing_block(&spans, 1).expect("Expected enclosing block");
+    assert_eq!(block.kind, BlockKind::Function);
+}
+
+#[test]
+fn test_enclosing_block_if_inside_function() {
+    let src = "fn foo():\n    if true:\n        pass\n    end\nend";
+    let spans = collect(src);
+    let block = find_enclosing_block(&spans, 2).expect("Expected enclosing block");
+    // Deepest enclosing block should be If, not Function
+    assert_eq!(block.kind, BlockKind::If);
+}
+
+#[test]
+fn test_enclosing_block_for_inside_function() {
+    let src = "fn foo():\n    for i=0:5:\n        pass\n    end\nend";
+    let spans = collect(src);
+    let block = find_enclosing_block(&spans, 2).expect("Expected enclosing block");
+    assert_eq!(block.kind, BlockKind::For);
+}
+
+#[test]
+fn test_enclosing_block_is_not_if_for_for_loop() {
+    // Verifies that else/elseif snippets would NOT be shown inside a for loop
+    let src = "fn foo():\n    for i=0:5:\n        pass\n    end\nend";
+    let spans = collect(src);
+    let block = find_enclosing_block(&spans, 2).expect("Expected enclosing block");
+    let in_if_context = matches!(block.kind, BlockKind::If | BlockKind::Elseif | BlockKind::MacroIf);
+    assert!(!in_if_context, "For loop should not be treated as if context");
+}
+
+#[test]
+fn test_enclosing_block_is_if_context_for_if() {
+    // Verifies that else/elseif snippets WOULD be shown inside an if block
+    let src = "fn foo():\n    if true:\n        pass\n    end\nend";
+    let spans = collect(src);
+    let block = find_enclosing_block(&spans, 2).expect("Expected enclosing block");
+    let in_if_context = matches!(block.kind, BlockKind::If | BlockKind::Elseif | BlockKind::MacroIf);
+    assert!(in_if_context, "If block should be treated as if context");
+}
+
+#[test]
+fn test_enclosing_block_elseif_is_if_context() {
+    // Cursor inside elseif body — elseif snippet should still be available
+    let src = "fn foo():\n    if true:\n        pass\n    elseif false:\n        pass\n    end\nend";
+    let spans = collect(src);
+    let block = find_enclosing_block(&spans, 4).expect("Expected enclosing block");
+    let in_if_context = matches!(block.kind, BlockKind::If | BlockKind::Elseif | BlockKind::MacroIf);
+    assert!(in_if_context, "Elseif block should be treated as if context");
 }

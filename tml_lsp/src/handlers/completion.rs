@@ -1,6 +1,6 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
-use tml_tools::collectors::block_span::find_indent;
+use tml_tools::collectors::block_span::{BlockKind, find_indent, find_enclosing_block};
 use tml_tools::formatter::INDENT;
 use crate::backend::Backend;
 
@@ -13,13 +13,16 @@ struct SnippetDef {
     insert_text: &'static str,
     min_level: Option<usize>,
     max_level: Option<usize>,
+    /// If true, only shown when the enclosing block is an if/elseif
+    requires_if_context: bool,
 }
 
 impl SnippetDef {
-    fn is_available_at(&self, level: usize) -> bool {
+    fn is_available_at(&self, level: usize, in_if_context: bool) -> bool {
         let min_ok = self.min_level.map_or(true, |min| level >= min);
         let max_ok = self.max_level.map_or(true, |max| level <= max);
-        min_ok && max_ok
+        let context_ok = !self.requires_if_context || in_if_context;
+        min_ok && max_ok && context_ok
     }
 
     fn to_completion_item(&self, inner_indent: &str) -> CompletionItem {
@@ -50,15 +53,17 @@ const SNIPPETS: &[SnippetDef] = &[
         documentation: "Insert a function definition",
         insert_text: "fn ${1:name}(${2:}):\n{inner_indent}${3:pass}\nend$0",
         min_level: None,
-        max_level: Some(0), // fn is only valid at global scope
+        max_level: Some(0),
+        requires_if_context: false,
     },
     SnippetDef {
         label: "if",
         detail: "If statement",
         documentation: "Insert an if/end block",
         insert_text: "if ${1:condition}:\n{inner_indent}${2:pass}\nend$0",
-        min_level: Some(1), // if requires being inside a block
+        min_level: Some(1),
         max_level: None,
+        requires_if_context: false,
     },
     SnippetDef {
         label: "for_range",
@@ -67,6 +72,7 @@ const SNIPPETS: &[SnippetDef] = &[
         insert_text: "for ${1:i} = ${2:start}:${3:end}:\n{inner_indent}${4:pass}\nend$0",
         min_level: Some(1),
         max_level: None,
+        requires_if_context: false,
     },
     SnippetDef {
         label: "for_step",
@@ -75,6 +81,7 @@ const SNIPPETS: &[SnippetDef] = &[
         insert_text: "for ${1:i} = ${2:start}:${3:end}:${4:step}:\n{inner_indent}${5:pass}\nend$0",
         min_level: Some(1),
         max_level: None,
+        requires_if_context: false,
     },
     SnippetDef {
         label: "while",
@@ -83,6 +90,7 @@ const SNIPPETS: &[SnippetDef] = &[
         insert_text: "while ${1:condition}:\n{inner_indent}${2:pass}\nend$0",
         min_level: Some(1),
         max_level: None,
+        requires_if_context: false,
     },
     SnippetDef {
         label: "elseif",
@@ -91,6 +99,7 @@ const SNIPPETS: &[SnippetDef] = &[
         insert_text: "elseif ${1:condition}:\n{inner_indent}${2:pass}$0",
         min_level: Some(1),
         max_level: None,
+        requires_if_context: true,
     },
     SnippetDef {
         label: "else",
@@ -99,6 +108,7 @@ const SNIPPETS: &[SnippetDef] = &[
         insert_text: "else:\n{inner_indent}${1:pass}$0",
         min_level: Some(1),
         max_level: None,
+        requires_if_context: true,
     },
 ];
 
@@ -116,15 +126,18 @@ pub async fn completion(
         .get(&uri)
         .map(|s| find_indent(s, line))
         .unwrap_or(0);
+    let in_if_context = spans
+        .get(&uri)
+        .and_then(|s| find_enclosing_block(s, line))
+        .map(|b| matches!(b.kind, BlockKind::If | BlockKind::Elseif | BlockKind::MacroIf))
+        .unwrap_or(false);
     drop(spans);
 
-    // inner_indent: one INDENT level deeper than outer
     let inner_indent = INDENT.to_string();
-
 
     let items: Vec<CompletionItem> = SNIPPETS
         .iter()
-        .filter(|s| s.is_available_at(level))
+        .filter(|s| s.is_available_at(level, in_if_context))
         .map(|s| s.to_completion_item(&inner_indent))
         .collect();
 
