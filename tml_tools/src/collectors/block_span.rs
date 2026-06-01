@@ -82,11 +82,10 @@ impl AstVisitor for BlockSpanCollector {
         if let Some(else_if_cols) = elif_pos_opts {
             for index in 0..else_if_cols.len() {
                 let else_if_pos = &else_if_cols[index];
-                let next_else_if_pos_opt = else_if_cols.get(index + 1).cloned();
-
-                if let Some(next_else_if_pos) = next_else_if_pos_opt {
-                    self.register(&else_if_pos, &next_else_if_pos, else_if_pos.column);
-                }
+                let next_pos = else_if_cols.get(index + 1)
+                    .cloned()
+                    .unwrap_or_else(|| end_pos.clone()); // last elseif goes to end_t
+                self.register(&else_if_pos, &next_pos, else_if_pos.column);
             }
         }
     }
@@ -168,9 +167,10 @@ impl AstVisitor for BlockSpanCollector {
                 .collect();
 
             for (i, elif_pos) in elif_positions.iter().enumerate() {
-                if let Some(next_pos) = elif_positions.get(i + 1) {
-                    self.register(elif_pos, next_pos, elif_pos.column);
-                }
+                let next_pos = elif_positions.get(i + 1)
+                    .cloned()
+                    .unwrap_or_else(|| end_pos.clone()); // last elseif goes to end_t
+                self.register(elif_pos, &next_pos, elif_pos.column);
             }
         }
     }

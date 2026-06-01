@@ -204,10 +204,39 @@ fn test_indent_level_matches_indent_constant() {
     assert_eq!(expected_indent, "    "); // 4 spaces = 1 * INDENT
 }
 
+// ───────────────────────── Elseif coverage ─────────────────────────
+
+#[test]
+fn test_find_indent_inside_last_elseif_block_regular() {
+    // fn foo():         ← line 0
+    //     if true:      ← line 1
+    //         pass      ← line 2
+    //     elseif false: ← line 3
+    //         pass      ← line 4
+    //     elseif true:  ← line 5  ← poslednji elseif, nema next
+    //         |cursor|  ← line 6
+    //     end           ← line 7
+    // end               ← line 8
+    let src = "fn foo():\n    if true:\n        pass\n    elseif false:\n        pass\n    elseif true:\n\n    end\nend";
+    let spans = collect(src);
+    let level = find_indent(&spans, 6);
+    assert_eq!(
+        level, 2,
+        "Cursor inside last elseif block should be at level 2, spans: {:?}", spans
+    );
+}
+
 // ───────────────────────── Macro elseif coverage ─────────────────────────
 
 #[test]
 fn test_find_indent_inside_last_elseif_block() {
+    // macro if true:    ← line 0
+    //     pass          ← line 1
+    // elseif false:     ← line 2
+    //     pass          ← line 3
+    // elseif true:      ← line 4  ← poslednji elseif, nema next
+    //     |cursor|      ← line 5
+    // end               ← line 6
     let src = "macro if true:\n    pass\nelseif false:\n    pass\nelseif true:\n\nend";
     let spans = collect(src);
     let level = find_indent(&spans, 5);

@@ -2806,14 +2806,29 @@ impl PostfixExpression {
 impl MacroFor {
     pub fn accept(&self, v: &mut dyn AstVisitor) {
         v.visit_macro_for(self);
-        self.body.accept(v);
+        // Recurse into children directly, skipping visit_for
+        match &self.body.header.iterator_expression {
+            IteratorExpression::Expression(e)      => e.accept(v),
+            IteratorExpression::RangeFromTo(r)     => { r.start.accept(v); r.stop.accept(v); }
+            IteratorExpression::RangeFromStepTo(r) => { r.start.accept(v); r.stop.accept(v); r.step.accept(v); }
+        }
+        self.body.body.statement_block.accept(v);
     }
 }
 
 impl MacroIf {
     pub fn accept(&self, v: &mut dyn AstVisitor) {
         v.visit_macro_if(self);
-        self.body.accept(v);
+        self.body.condition.accept(v);
+        self.body.if_statement_block.accept(v);
+        if let Some(elseifs) = &self.body.elseif_clause {
+            for clause in elseifs {
+                clause.accept(v);
+            }
+        }
+        if let Some(else_c) = &self.body.else_clause {
+            else_c.accept(v);
+        }
     }
 }
 
