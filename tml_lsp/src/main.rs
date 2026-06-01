@@ -31,6 +31,10 @@ impl LanguageServer for Backend {
                     first_trigger_character: "\n".to_string(),
                     more_trigger_character: Some(vec!["\r".to_string()]),
                 }),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(false),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -94,6 +98,10 @@ impl LanguageServer for Backend {
 
     async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         handlers::folding::folding_range(self, params).await
+    }
+
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        handlers::completion::completion(self, params).await
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
