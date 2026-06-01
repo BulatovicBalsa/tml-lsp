@@ -1,8 +1,8 @@
 use crate::backend::Backend;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
-use tml_tools::collectors::block_span::find_indent;
-use tml_tools::formatter::{indent_str, Format};
+use tml_tools::collectors::block_span::find_body_col;
+use tml_tools::formatter::Format;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
@@ -63,18 +63,18 @@ pub async fn on_type_formatting(
 
     let spans = backend.block_spans.read().await.get(&uri).cloned().unwrap_or_default();
 
-    let level = find_indent(&spans, cursor_line);
+    let col = find_body_col(&spans, cursor_line);
 
     backend.client.log_message(
         MessageType::INFO,
-        format!("Cursor at line {}, computed indent level: {}", cursor_line, level),
+        format!("Cursor at line {}, computed body_col: {}", cursor_line, col),
     ).await;
 
-    if level == 0 {
+    if col == 0 {
         return Ok(None);
     }
 
-    let target_indent = indent_str(level);
+    let target_indent = " ".repeat(col);
 
     let current_indent = backend.documents.read().await
         .get(&uri)

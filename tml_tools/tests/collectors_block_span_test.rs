@@ -21,40 +21,40 @@ fn test_find_indent_empty_spans() {
 
 #[test]
 fn test_find_indent_before_any_block() {
-    let spans = vec![BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1, kind: BlockKind::Function }];
+    let spans = vec![BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1, body_col: 4, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 3), 0);
 }
 
 #[test]
 fn test_find_indent_after_block_closes() {
-    let spans = vec![BlockSpan { header_line: 0, end_line: 5, body_indent_level: 1, kind: BlockKind::Function }];
+    let spans = vec![BlockSpan { header_line: 0, end_line: 5, body_indent_level: 1, body_col: 4, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 6), 0);
 }
 
 #[test]
 fn test_find_indent_exactly_on_header_line() {
-    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1, kind: BlockKind::Function }];
+    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1, body_col: 4, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 2), 0);
 }
 
 #[test]
 fn test_find_indent_exactly_on_end_line() {
-    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1, kind: BlockKind::Function }];
+    let spans = vec![BlockSpan { header_line: 2, end_line: 6, body_indent_level: 1, body_col: 4, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 6), 0);
 }
 
 #[test]
 fn test_find_indent_inside_single_block() {
-    let spans = vec![BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1, kind: BlockKind::Function }];
+    let spans = vec![BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1, body_col: 4, kind: BlockKind::Function }];
     assert_eq!(find_indent(&spans, 5), 1);
 }
 
 #[test]
 fn test_find_indent_nested_blocks_takes_deepest() {
     let spans = vec![
-        BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1, kind: BlockKind::Function },
-        BlockSpan { header_line: 2, end_line: 8,  body_indent_level: 2, kind: BlockKind::If },
-        BlockSpan { header_line: 4, end_line: 6,  body_indent_level: 3, kind: BlockKind::For },
+        BlockSpan { header_line: 0, end_line: 10, body_indent_level: 1, body_col: 4, kind: BlockKind::Function },
+        BlockSpan { header_line: 2, end_line: 8,  body_indent_level: 2, body_col: 4, kind: BlockKind::If },
+        BlockSpan { header_line: 4, end_line: 6,  body_indent_level: 3, body_col: 4, kind: BlockKind::For },
     ];
     assert_eq!(find_indent(&spans, 5), 3);
     assert_eq!(find_indent(&spans, 3), 2);
@@ -64,8 +64,8 @@ fn test_find_indent_nested_blocks_takes_deepest() {
 #[test]
 fn test_find_indent_sibling_blocks_not_mixed() {
     let spans = vec![
-        BlockSpan { header_line: 0, end_line: 4,  body_indent_level: 1, kind: BlockKind::Function },
-        BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1, kind: BlockKind::Function },
+        BlockSpan { header_line: 0, end_line: 4,  body_indent_level: 1, body_col: 4, kind: BlockKind::Function },
+        BlockSpan { header_line: 5, end_line: 10, body_indent_level: 1, body_col: 4, kind: BlockKind::Function },
     ];
     assert_eq!(find_indent(&spans, 3), 1);
     assert_eq!(find_indent(&spans, 7), 1);
