@@ -1,7 +1,8 @@
 use crate::backend::Backend;
 use rustemo::Parser;
+use tokio::task::spawn_blocking;
 use tml_parser::tml::TmlParser;
-use tml_tools::collectors::block_span::find_body_col;
+use tml_tools::collectors::block_span::{find_body_col, BlockSpanCollector};
 use tml_tools::formatter::Format;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -17,7 +18,7 @@ pub async fn formatting(
         None => return Ok(None),
     };
 
-    let format_result = tokio::task::spawn_blocking(move || {
+    let format_result = spawn_blocking(move || {
         TmlParser::new().parse(&text).ok().map(|ast| ast.format(0))
     }).await;
 
@@ -61,7 +62,24 @@ pub async fn on_type_formatting(
     let uri = params.text_document_position.text_document.uri.to_string();
     let cursor_line = params.text_document_position.position.line;
 
-    let spans = backend.block_spans.read().await.get(&uri).cloned().unwrap_or_default();
+    // Always parse fresh text — block_spans cache may be stale because
+    // update_document parses asynchronously. documents HashMap is updated
+    // synchronously in did_change before spawn_blocking starts.
+    let text = match backend.documents.read().await.get(&uri).cloned() {
+        Some(t) => t,
+        None => return Ok(None),
+    };
+
+    let spans = match spawn_blocking(move || {
+        TmlParser::new()
+            .parse(&text)
+            .ok()
+            .map(|ast| BlockSpanCollector::new().collect(&ast))
+    }).await {
+        Ok(Some(s)) => s,
+        // Fallback to cached spans if parse fails (document is mid-edit)
+        _ => backend.block_spans.read().await.get(&uri).cloned().unwrap_or_default(),
+    };
 
     let col = find_body_col(&spans, cursor_line);
 
