@@ -1,7 +1,7 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tml_tools::collectors::block_span::find_indent;
-use tml_tools::formatter::indent_str;
+use tml_tools::formatter::INDENT;
 use crate::backend::Backend;
 
 // ───────────────────────── Snippet definition ─────────────────────────
@@ -22,8 +22,9 @@ impl SnippetDef {
         min_ok && max_ok
     }
 
-    fn to_completion_item(&self, indent: &str) -> CompletionItem {
-        let insert_text = self.insert_text.replace("{indent}", indent);
+    fn to_completion_item(&self, inner_indent: &str) -> CompletionItem {
+        let insert_text = self.insert_text
+            .replace("{inner_indent}", inner_indent);
         CompletionItem {
             label: self.label.to_string(),
             kind: Some(CompletionItemKind::SNIPPET),
@@ -47,7 +48,7 @@ const SNIPPETS: &[SnippetDef] = &[
         label: "fn",
         detail: "Function definition",
         documentation: "Insert a function definition",
-        insert_text: "fn ${1:name}(${2:}):\n{outer_indent}{inner_indent}${3:pass}\n{outer_indent}end$0",
+        insert_text: "fn ${1:name}(${2:}):\n{inner_indent}${3:pass}\nend$0",
         min_level: None,
         max_level: Some(0), // fn is only valid at global scope
     },
@@ -55,7 +56,7 @@ const SNIPPETS: &[SnippetDef] = &[
         label: "if",
         detail: "If statement",
         documentation: "Insert an if/end block",
-        insert_text: "if ${1:condition}:\n{outer_indent}{inner_indent}${2:pass}\n{outer_indent}end$0",
+        insert_text: "if ${1:condition}:\n{inner_indent}${2:pass}\nend$0",
         min_level: Some(1), // if requires being inside a block
         max_level: None,
     },
@@ -63,7 +64,7 @@ const SNIPPETS: &[SnippetDef] = &[
         label: "for",
         detail: "For loop",
         documentation: "Insert a for loop",
-        insert_text: "for ${1:i} = ${2:start}:${3:end}:\n{outer_indent}{inner_indent}${4:pass}\n{outer_indent}end$0",
+        insert_text: "for ${1:i} = ${2:start}:${3:end}:\n{inner_indent}${4:pass}\nend$0",
         min_level: Some(1),
         max_level: None,
     },
@@ -71,7 +72,7 @@ const SNIPPETS: &[SnippetDef] = &[
         label: "while",
         detail: "While loop",
         documentation: "Insert a while loop",
-        insert_text: "while ${1:condition}:\n{outer_indent}{inner_indent}${2:pass}\n{outer_indent}end$0",
+        insert_text: "while ${1:condition}:\n{inner_indent}${2:pass}\nend$0",
         min_level: Some(1),
         max_level: None,
     },
@@ -86,18 +87,21 @@ pub async fn completion(
     let uri = params.text_document_position.text_document.uri.to_string();
     let line = params.text_document_position.position.line;
 
-    let spans = backend.block_spans.read().await
+    let spans = backend.block_spans.read().await;
+    let level = spans
         .get(&uri)
-        .cloned()
-        .unwrap_or_default();
+        .map(|s| find_indent(s, line))
+        .unwrap_or(0);
+    drop(spans);
 
-    let level = find_indent(&spans, line);
-    let indent = indent_str(level);
+    // inner_indent: one INDENT level deeper than outer
+    let inner_indent = INDENT.to_string();
+
 
     let items: Vec<CompletionItem> = SNIPPETS
         .iter()
         .filter(|s| s.is_available_at(level))
-        .map(|s| s.to_completion_item(&indent))
+        .map(|s| s.to_completion_item(&inner_indent))
         .collect();
 
     if items.is_empty() {
