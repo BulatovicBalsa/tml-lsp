@@ -100,6 +100,20 @@ pub fn find_span_at_keyword(spans: &[BlockSpan], line: u32) -> Option<&BlockSpan
         .find(|s| s.header.line == line || s.end.line == line)
 }
 
+/// Returns the (header, end) keyword pair when cursor is within either keyword.
+/// Used for document highlight - clicking on `fn` highlights both `fn` and `end`.
+pub fn find_highlight(spans: &[BlockSpan], line: u32, character: u32) -> Option<(KeywordSpan, KeywordSpan)> {
+    spans.iter().find(|s| {
+        let on_header = s.header.line == line
+            && character >= s.header.col
+            && character < s.header.col + s.header.len as u32;
+        let on_end = s.end.line == line
+            && character >= s.end.col
+            && character < s.end.col + s.end.len as u32;
+        on_header || on_end
+    }).map(|s| (s.header.clone(), s.end.clone()))
+}
+
 pub struct BlockSpanCollector {
     spans: Vec<BlockSpan>,
 }

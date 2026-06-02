@@ -1,5 +1,6 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
+use tml_tools::collectors::block_span::find_highlight;
 use crate::backend::Backend;
 
 fn make_highlight(line: u32, col: u32, len: usize) -> DocumentHighlight {
@@ -26,22 +27,11 @@ pub async fn document_highlight(
         None => return Ok(None),
     };
 
-    // Find the span whose header or end keyword contains the cursor.
-    let span = spans.iter().find(|s| {
-        let on_header = s.header.line == line
-            && character >= s.header.col
-            && character < s.header.col + s.header.len as u32;
-        let on_end = s.end.line == line
-            && character >= s.end.col
-            && character < s.end.col + s.end.len as u32;
-        on_header || on_end
-    });
-
-    match span {
+    match find_highlight(spans, line, character) {
         None => Ok(None),
-        Some(s) => Ok(Some(vec![
-            make_highlight(s.header.line, s.header.col, s.header.len),
-            make_highlight(s.end.line, s.end.col, s.end.len),
+        Some((header, end)) => Ok(Some(vec![
+            make_highlight(header.line, header.col, header.len),
+            make_highlight(end.line,    end.col,    end.len),
         ])),
     }
 }

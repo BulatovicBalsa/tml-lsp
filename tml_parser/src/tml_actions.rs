@@ -2450,17 +2450,6 @@ pub struct TmlString {
 pub fn tml_string_c1(_ctx: &Ctx, value: StringConst) -> TmlString {
     TmlString { value }
 }
-#[derive(Debug, Clone)]
-pub struct EndT {
-    pub value: String,
-    pub position: Position,
-}
-pub fn end_t(_ctx: &Ctx, token: Token) -> EndT {
-    EndT {
-        value: token.value.into(),
-        position: _ctx.position(),
-    }
-}
 pub type InT = String;
 pub fn in_t(_ctx: &Ctx, token: Token) -> InT {
     token.value.into()
@@ -2492,6 +2481,7 @@ keyword_token!(PassT, pass_t);
 keyword_token!(MacroT, macro_t);
 keyword_token!(BreakT, break_t);
 keyword_token!(InputT, input_t);
+keyword_token!(EndT, end_t);
 
 // ───────────────────────── Visitor support ─────────────────────────
 //
