@@ -83,25 +83,26 @@ pub type StringConst = String;
 pub fn string_const(_ctx: &Ctx, token: Token) -> StringConst {
     token.value.into()
 }
-#[derive(Debug, Clone)]
-pub struct Id {
-    pub value: String,
-    pub position: Position,
-}
-pub fn id(_ctx: &Ctx, token: Token) -> Id {
-    let value: String = token.value.into();
-    let pos_start = _ctx.position().line_col.unwrap().column - value.len() + 1;
-    Id {
-        value,
-        position: Position {
-            pos: _ctx.position().pos,
-            line_col: Some(LineColumn {
-                line: _ctx.position().line_col.unwrap().line,
-                column: pos_start,
-            }),
-        },
-    }
-}
+// #[derive(Debug, Clone)]
+// pub struct Id {
+//     pub value: String,
+//     pub position: Position,
+// }
+// pub fn id(_ctx: &Ctx, token: Token) -> Id {
+//     let value: String = token.value.into();
+//     let pos_start = _ctx.position().line_col.unwrap().column - value.len() + 1;
+//     Id {
+//         value,
+//         position: Position {
+//             pos: _ctx.position().pos,
+//             line_col: Some(LineColumn {
+//                 line: _ctx.position().line_col.unwrap().line,
+//                 column: pos_start,
+//             }),
+//         },
+//     }
+// }
+keyword_token!(Id, id);
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
     pub ext_decls: ExternalDeclaration1,

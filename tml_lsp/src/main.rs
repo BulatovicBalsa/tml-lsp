@@ -4,6 +4,7 @@ mod handlers;
 
 use backend::Backend;
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::SemanticTokensFullOptions::Bool;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{LanguageServer, LspService, Server};
 
@@ -36,7 +37,30 @@ impl LanguageServer for Backend {
                     ..Default::default()
                 }),
                 document_highlight_provider: Some(OneOf::Left(true)),
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend{
+                                token_types: vec![
+                                    SemanticTokenType::KEYWORD,
+                                    SemanticTokenType::VARIABLE,
+                                    SemanticTokenType::FUNCTION,
+                                    SemanticTokenType::PARAMETER,
+                                    SemanticTokenType::PROPERTY,
+                                    SemanticTokenType::TYPE,
+                                    SemanticTokenType::NUMBER,
+                                ],
+                                token_modifiers: vec![
+                                    SemanticTokenModifier::DECLARATION
+                                ]
+                            },
+                            full: Some(Bool(true)),
+                            ..Default::default()
+                        }
+                    )
+                ),
                 ..Default::default()
+
             },
             server_info: Some(ServerInfo {
                 name: "tml-lsp".to_string(),
@@ -103,6 +127,10 @@ impl LanguageServer for Backend {
 
     async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         handlers::folding::folding_range(self, params).await
+    }
+
+    async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> Result<Option<SemanticTokensResult>> {
+        handlers::semantic_tokens::semantic_tokens_full(self, params).await
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
