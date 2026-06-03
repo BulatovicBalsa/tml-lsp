@@ -1,12 +1,4 @@
-use tml_parser::tml_actions::{
-    AssignmentStatement, Boolean, Constant, DeclarationStatement,
-    ElseClause, ElseIfClause, ExistsStatement, ExternalDeclaration,
-    FeedthroughStatement, ForIterationStatement, FunctionCall, FunctionDefinition,
-    Integer, MacroFor, MacroIf, NotExistsStatement, NotFeedthroughStatement,
-    PostfixExpression, SelectionStatement, SimpleTypeSpec,
-    Statement, TranslationUnit, TypeSpec, UnsignedInteger,
-    WhileIterationStatement,
-};
+use tml_parser::tml_actions::{AssignmentStatement, Boolean, Constant, DeclarationStatement, ElseClause, ElseIfClause, ExistsStatement, ExternalDeclaration, FeedthroughStatement, ForIterationStatement, FunctionCall, FunctionDefinition, Id, Integer, IoDeclarationStatement, IoDirection, IoWriteStatement, MacroFor, MacroIf, NotExistsStatement, NotFeedthroughStatement, PostfixExpression, SelectionStatement, SimpleTypeSpec, Statement, TranslationUnit, TypeSpec, UnsignedInteger, WhileIterationStatement};
 use tml_parser::visitor::AstVisitor;
 use crate::position::SourcePosition;
 
@@ -75,11 +67,39 @@ impl SemanticTokenCollector {
 
     fn push_declaration(&mut self, d: &DeclarationStatement) {
         self.push_type_spec(&d._type);
-        // declaration id — first name is Variable + DECLARATION, rest are Property
         let names = &d.id.names;
         let first = &names[0];
         let pos = SourcePosition::from_rustemo(&first.position);
         self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::DECLARATION);
+        for id in &names[1..] {
+            let pos = SourcePosition::from_rustemo(&id.position);
+            self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
+        }
+    }
+
+    fn push_io_declaration(&mut self, d: &IoDeclarationStatement) {
+        // in/out keyword
+        let (dir_pos, dir_len) = match &d.io_type.direction {
+            IoDirection::InT(t)  => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+            IoDirection::OutT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+        };
+        self.push(dir_pos.line as u32, dir_pos.column as u32, dir_len, TokenType::Keyword, TokenModifiers::NONE);
+        // type
+        self.push_type_spec(&d.io_type._type);
+        // variable name — declaration
+        let first = &d.id.names[0];
+        let pos = SourcePosition::from_rustemo(&first.position);
+        self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::DECLARATION);
+        for id in &d.id.names[1..] {
+            let pos = SourcePosition::from_rustemo(&id.position);
+            self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
+        }
+    }
+
+    fn push_dot_access_lhs(&mut self, names: &[Id]) {
+        let first = &names[0];
+        let pos = SourcePosition::from_rustemo(&first.position);
+        self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::NONE);
         for id in &names[1..] {
             let pos = SourcePosition::from_rustemo(&id.position);
             self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
@@ -120,8 +140,8 @@ impl SemanticTokenCollector {
 impl AstVisitor for SemanticTokenCollector {
     fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
         match decl {
-            ExternalDeclaration::DeclarationStatement(d) => self.push_declaration(d),
-            ExternalDeclaration::AssignmentStatement(a)  => self.visit_assignment(a),
+            ExternalDeclaration::DeclarationStatement(d)   => self.push_declaration(d),
+            ExternalDeclaration::IoDeclarationStatement(d) => self.push_io_declaration(d),
             _ => {}
         }
     }
@@ -153,8 +173,10 @@ impl AstVisitor for SemanticTokenCollector {
     }
 
     fn visit_statement(&mut self, stmt: &Statement) {
-        if let Statement::DeclarationStatement(d) = stmt {
-            self.push_declaration(d);
+        match stmt {
+            Statement::DeclarationStatement(d)   => self.push_declaration(d),
+            Statement::IoDeclarationStatement(d) => self.push_io_declaration(d),
+            _ => {}
         }
     }
 
@@ -228,25 +250,18 @@ impl AstVisitor for SemanticTokenCollector {
     fn visit_assignment(&mut self, a: &AssignmentStatement) {
         match a {
             AssignmentStatement::VarAssignmentStatement(v) => {
-                let names = &v.var.names;
-                let first = &names[0];
-                let pos = SourcePosition::from_rustemo(&first.position);
-                self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::NONE);
-                for id in &names[1..] {
-                    let pos = SourcePosition::from_rustemo(&id.position);
-                    self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
-                }
+                self.push_dot_access_lhs(&v.var.names);
             }
             AssignmentStatement::TensorAssignmentStatement(t) => {
-                let names = &t.tensor.expr.names;
-                let first = &names[0];
-                let pos = SourcePosition::from_rustemo(&first.position);
-                self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::NONE);
-                for id in &names[1..] {
-                    let pos = SourcePosition::from_rustemo(&id.position);
-                    self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
-                }
+                self.push_dot_access_lhs(&t.tensor.expr.names);
             }
+        }
+    }
+
+    fn visit_io_write(&mut self, s: &IoWriteStatement) {
+        match s {
+            IoWriteStatement::VarIoWriteStatement(v)    => self.push_dot_access_lhs(&v.io_var.names),
+            IoWriteStatement::TensorIoWriteStatement(t) => self.push_dot_access_lhs(&t.io_tensor.expr.names),
         }
     }
 

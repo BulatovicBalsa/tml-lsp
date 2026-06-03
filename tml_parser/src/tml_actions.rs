@@ -2384,14 +2384,8 @@ pub struct TmlString {
 pub fn tml_string_c1(_ctx: &Ctx, value: StringConst) -> TmlString {
     TmlString { value }
 }
-pub type InT = String;
-pub fn in_t(_ctx: &Ctx, token: Token) -> InT {
-    token.value.into()
-}
-pub type OutT = String;
-pub fn out_t(_ctx: &Ctx, token: Token) -> OutT {
-    token.value.into()
-}
+keyword_token!(InT, in_t);
+keyword_token!(OutT, out_t);
 keyword_token!(FuncT, func_t);
 keyword_token!(IfT, if_t);
 keyword_token!(ElseT, else_t);
@@ -2442,7 +2436,7 @@ impl ExternalDeclaration {
             ExternalDeclaration::IoWriteStatement(s)        => s.accept(v),
             ExternalDeclaration::MacroFor(m)                => m.accept(v),
             ExternalDeclaration::MacroIf(m)                 => m.accept(v),
-            ExternalDeclaration::IoDeclarationStatement(_)  => {}
+            ExternalDeclaration::IoDeclarationStatement(d) => d.io_type.address.accept(v),
         }
         v.leave_external_declaration(self);
     }
@@ -2484,7 +2478,7 @@ impl Statement {
             Statement::JumpStatement(j)           => { v.visit_jump(j); j.accept(v); }
             Statement::MacroFor(m)                => m.accept(v),
             Statement::MacroIf(m)                 => m.accept(v),
-            Statement::IoDeclarationStatement(_)  => {}
+            Statement::IoDeclarationStatement(d) => d.io_type.address.accept(v),
             Statement::NoopStatement(_)           => {}
         }
     }

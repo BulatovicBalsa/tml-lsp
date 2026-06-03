@@ -427,7 +427,6 @@ fn test_macro_if_has_both_macro_and_if_keywords() {
 
 #[test]
 fn test_macro_for_for_keyword_token() {
-    // "macro for i = 0:5:" -> "for" keyword should also be colored
     let src = "macro for i = 0:5:\n    pass\nend";
     let tokens = collect(src);
     let kws_on_line_0: Vec<_> = find_type(&tokens, &TokenType::Keyword)
@@ -436,4 +435,57 @@ fn test_macro_for_for_keyword_token() {
         .collect();
     assert_eq!(kws_on_line_0.len(), 2,
         "Expected both 'macro' and 'for' keyword tokens on line 0, got: {:?}", kws_on_line_0);
+}
+
+#[test]
+fn test_io_in_keyword_is_keyword_token() {
+    let tokens = collect("in<int, 0x0> x");
+    assert!(has_token(&tokens, 0, 0, &TokenType::Keyword, TokenModifiers::NONE),
+        "Expected Keyword for 'in' at (0, 0), got: {:?}", tokens);
+}
+
+#[test]
+fn test_io_out_keyword_is_keyword_token() {
+    let tokens = collect("out<real, 0x0> x");
+    assert!(has_token(&tokens, 0, 0, &TokenType::Keyword, TokenModifiers::NONE),
+        "Expected Keyword for 'out' at (0, 0), got: {:?}", tokens);
+}
+
+#[test]
+fn test_io_declaration_type_is_type_token() {
+    let tokens = collect("in<int, 0x0> x");
+    assert!(!find_type(&tokens, &TokenType::Type).is_empty(),
+        "Expected Type token for 'int' in IO declaration, got: {:?}", tokens);
+}
+
+#[test]
+fn test_io_declaration_name_is_variable_declaration() {
+    let tokens = collect("in<int, 0x0> x");
+    let vars = find_type(&tokens, &TokenType::Variable);
+    let decls = find_modifier(vars, TokenModifiers::DECLARATION);
+    assert!(!decls.is_empty(),
+        "Expected Variable+DECLARATION for 'x' in IO declaration, got: {:?}", tokens);
+}
+
+#[test]
+fn test_io_declaration_with_namespace_address() {
+    // address expression contains namespace references -> Variable + Property
+    let tokens = collect("in<int, n.rd_ds> x");
+    assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
+        "Expected Property token for 'rd_ds' in namespace address, got: {:?}", tokens);
+}
+
+#[test]
+fn test_io_write_lhs_is_variable() {
+    let tokens = collect("fn foo():\n    in<int, 0x0> x\n    x = 5\nend");
+    let vars = find_type(&tokens, &TokenType::Variable);
+    assert!(vars.iter().any(|t| t.modifiers == TokenModifiers::NONE),
+        "Expected Variable token for IO write lhs, got: {:?}", tokens);
+}
+
+#[test]
+fn test_io_write_dot_access_lhs() {
+    let tokens = collect("fn foo():\n    in<int, 0x0> p.x\n    p.x = 5\nend");
+    assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
+        "Expected Property token for dot access in IO write, got: {:?}", tokens);
 }
