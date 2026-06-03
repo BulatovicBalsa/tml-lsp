@@ -1,4 +1,4 @@
-use tml_parser::tml_actions::{FunctionDefinition, TranslationUnit};
+use tml_parser::tml_actions::{FunctionDefinition, SimpleTypeSpec, TranslationUnit, TypeSpec};
 use tml_parser::visitor::AstVisitor;
 use crate::position::SourcePosition;
 
@@ -55,6 +55,38 @@ impl SemanticTokenCollector {
     fn push(&mut self, line: u32, col: u32, len: usize, token_type: TokenType, modifiers: u32) {
         self.tokens.push(RawToken::new(line, col, len, token_type, modifiers));
     }
+
+    fn push_type_spec(&mut self, type_spec: &TypeSpec) {
+        match type_spec {
+            TypeSpec::SimpleType(st) => {
+                let (pos, len) = match &st._type {
+                    SimpleTypeSpec::IntT(t)  => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                    SimpleTypeSpec::UintT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                    SimpleTypeSpec::RealT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                    SimpleTypeSpec::BoolT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                    SimpleTypeSpec::StrT(t)  => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                    SimpleTypeSpec::CharT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                };
+                self.push(pos.line as u32, pos.column as u32, len,
+                          TokenType::Type, TokenModifiers::NONE);
+            }
+            TypeSpec::DerivedType(dt) => {
+                for id in &dt.name.names {
+                    let pos = SourcePosition::from_rustemo(&id.position);
+                    self.push(pos.line as u32, pos.column as u32,
+                              id.value.len(), TokenType::Type, TokenModifiers::NONE);
+                }
+                let type_kw_pos = SourcePosition::from_rustemo(&dt.type_kw.position);
+                self.push(type_kw_pos.line as u32, type_kw_pos.column as u32, dt.type_kw.value.len(), TokenType::Type, TokenModifiers::NONE)
+            }
+            TypeSpec::TensorConstructor(tc) => {
+                let pos = SourcePosition::from_rustemo(&tc.tensor_t.position);
+                self.push(pos.line as u32, pos.column as u32,
+                          tc.tensor_t.value.len(), TokenType::Type, TokenModifiers::NONE);
+                self.push_type_spec(&tc._type); // recursion for tensor<tensor<int, 2>, 3>
+            }
+        }
+    }
 }
 
 impl AstVisitor for SemanticTokenCollector {
@@ -65,6 +97,22 @@ impl AstVisitor for SemanticTokenCollector {
         let id = SourcePosition::from_rustemo(&f.id.position);
         self.push(id.line as u32, id.column as u32, f.id.value.len(), TokenType::Function, TokenModifiers::DECLARATION);
 
+        // parameters — type + name for each
+        if let Some(params) = &f.parameters_list {
+            for p in params {
+                self.push_type_spec(&p._type);
 
+                // parameter name
+                let param_pos = SourcePosition::from_rustemo(&p.id.position);
+                self.push(param_pos.line as u32, param_pos.column as u32, p.id.value.len(), TokenType::Parameter, TokenModifiers::DECLARATION);
+            }
+        }
+
+        if let Some(return_type) = &f.ret_type {
+            self.push_type_spec(return_type)
+        }
+
+        let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
+        self.push(end_pos.line as u32, end_pos.column as u32, f.end_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
     }
 }

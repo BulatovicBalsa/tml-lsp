@@ -55,10 +55,10 @@ pub fn header_colon(_ctx: &Ctx, token: Token) -> HeaderColon {
         position: _ctx.position(),
     }
 }
-pub type TypeKw = String;
-pub fn type_kw(_ctx: &Ctx, token: Token) -> TypeKw {
-    token.value.into()
-}
+// pub type TypeKw = String;
+// pub fn type_kw(_ctx: &Ctx, token: Token) -> TypeKw {
+//     token.value.into()
+// }
 pub type LenKw = String;
 pub fn len_kw(_ctx: &Ctx, token: Token) -> LenKw {
     token.value.into()
@@ -102,6 +102,7 @@ pub fn string_const(_ctx: &Ctx, token: Token) -> StringConst {
 //         },
 //     }
 // }
+keyword_token!(TypeKw, type_kw);
 keyword_token!(Id, id);
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
