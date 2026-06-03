@@ -10,17 +10,26 @@ use tml_parser::tml_actions::{
 use tml_parser::visitor::AstVisitor;
 use crate::position::SourcePosition;
 
+macro_rules! const_pos_len {
+    ($val:expr, $($variant:path),+) => {
+        match $val {
+            $($variant(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),)+
+        }
+    };
+}
+
 // Token type indices — must match the order in SemanticTokensLegend in main.rs
 #[repr(u32)]
 #[derive(Clone, Debug)]
 pub enum TokenType {
-    Keyword   = 0,
-    Variable  = 1,
-    Function  = 2,
+    Keyword = 0,
+    Variable = 1,
+    Function = 2,
     Parameter = 3,
-    Property  = 4,
-    Type      = 5,
-    Number    = 6,
+    Property = 4,
+    Type = 5,
+    Number = 6,
+    String = 7,
 }
 
 // Token modifier bitmask — must match SemanticTokensLegend modifiers
@@ -259,25 +268,28 @@ impl AstVisitor for SemanticTokenCollector {
             }
         }
         if let PostfixExpression::Constant(c) = e {
-            let (pos, len) = match c {
-                Constant::Integer(i) => match i {
-                    Integer::C1(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                    Integer::C2(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                    Integer::C3(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                },
-                Constant::UnsignedInteger(u) => match u {
-                    UnsignedInteger::C1(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                    UnsignedInteger::C2(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                    UnsignedInteger::C3(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                },
-                Constant::TmlFloat(f) => (SourcePosition::from_rustemo(&f.value.position), f.value.value.len()),
-                Constant::TmlString(s) => (SourcePosition::from_rustemo(&s.value.position), s.value.value.len()),
-                Constant::Boolean(b) => match b {
-                    Boolean::C1(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                    Boolean::C2(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
-                },
-            };
-            self.push(pos.line as u32, pos.column as u32, len, TokenType::Number, TokenModifiers::NONE);
+            match c {
+                Constant::Integer(i) => {
+                    let (pos, len) = const_pos_len!(i, Integer::C1, Integer::C2, Integer::C3);
+                    self.push(pos.line as u32, pos.column as u32, len, TokenType::Number, TokenModifiers::NONE);
+                }
+                Constant::UnsignedInteger(u) => {
+                    let (pos, len) = const_pos_len!(u, UnsignedInteger::C1, UnsignedInteger::C2, UnsignedInteger::C3);
+                    self.push(pos.line as u32, pos.column as u32, len, TokenType::Number, TokenModifiers::NONE);
+                }
+                Constant::TmlFloat(f) => {
+                    let pos = SourcePosition::from_rustemo(&f.value.position);
+                    self.push(pos.line as u32, pos.column as u32, f.value.value.len(), TokenType::Number, TokenModifiers::NONE);
+                }
+                Constant::TmlString(s) => {
+                    let pos = SourcePosition::from_rustemo(&s.value.position);
+                    self.push(pos.line as u32, pos.column as u32, s.value.value.len(), TokenType::String, TokenModifiers::NONE);
+                }
+                Constant::Boolean(b) => {
+                    let (pos, len) = const_pos_len!(b, Boolean::C1, Boolean::C2);
+                    self.push(pos.line as u32, pos.column as u32, len, TokenType::Keyword, TokenModifiers::NONE);
+                }
+            }
         }
     }
 

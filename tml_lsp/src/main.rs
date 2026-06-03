@@ -49,6 +49,7 @@ impl LanguageServer for Backend {
                                     SemanticTokenType::PROPERTY,
                                     SemanticTokenType::TYPE,
                                     SemanticTokenType::NUMBER,
+                                    SemanticTokenType::STRING,
                                 ],
                                 token_modifiers: vec![
                                     SemanticTokenModifier::DECLARATION
