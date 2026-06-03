@@ -205,8 +205,199 @@ fn test_function_call_multiple_arguments_are_variables() {
 
 #[test]
 fn test_function_call_property_argument() {
-    // "foo(p.x)" -> p is Variable, x is Property
     let tokens = collect("fn bar():\n    a = foo(p.x)\nend");
     assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
         "Expected Property token for 'x' in p.x argument, got: {:?}", tokens);
+}
+
+// ───────────────────────── Control flow keywords ─────────────────────────
+
+#[test]
+fn test_if_keyword_token() {
+    let tokens = collect("fn foo():\n    if true:\n        pass\n    end\nend");
+    assert!(has_token(&tokens, 1, 4, &TokenType::Keyword, TokenModifiers::NONE),
+        "Expected keyword at (1, 4), got: {:?}", tokens);
+}
+
+#[test]
+fn test_elseif_keyword_token() {
+    let tokens = collect("fn foo():\n    if true:\n        pass\n    elseif false:\n        pass\n    end\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 3),
+        "Expected elseif keyword token on line 3, got: {:?}", tokens);
+}
+
+#[test]
+fn test_else_keyword_token() {
+    let tokens = collect("fn foo():\n    if true:\n        pass\n    else:\n        pass\n    end\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 3),
+        "Expected else keyword token on line 3, got: {:?}", tokens);
+}
+
+#[test]
+fn test_for_keyword_token() {
+    let tokens = collect("fn foo():\n    for i = 0:5:\n        pass\n    end\nend");
+    assert!(has_token(&tokens, 1, 4, &TokenType::Keyword, TokenModifiers::NONE),
+        "Expected for keyword at (1, 4), got: {:?}", tokens);
+}
+
+#[test]
+fn test_for_index_is_variable_declaration() {
+    // for index variable is Variable + DECLARATION
+    let tokens = collect("fn foo():\n    for i = 0:5:\n        pass\n    end\nend");
+    let vars = find_type(&tokens, &TokenType::Variable);
+    let decl = find_modifier(vars, TokenModifiers::DECLARATION);
+    assert!(!decl.is_empty(),
+        "Expected Variable+DECLARATION for for index 'i', got: {:?}", tokens);
+}
+
+#[test]
+fn test_while_keyword_token() {
+    let tokens = collect("fn foo():\n    int x = 1\n    while x > 0:\n        pass\n    end\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected while keyword token on line 2, got: {:?}", tokens);
+}
+
+// ───────────────────────── Assignment ─────────────────────────
+
+#[test]
+fn test_assignment_lhs_is_variable() {
+    // "a = 5" -> "a" is Variable (no DECLARATION — inferred)
+    let tokens = collect("fn foo():\n    a = 5\nend");
+    assert!(has_token(&tokens, 1, 4, &TokenType::Variable, TokenModifiers::NONE),
+        "Expected Variable at (1, 4), got: {:?}", tokens);
+}
+
+#[test]
+fn test_assignment_dot_access_lhs() {
+    // "p.x = 5" -> "p" is Variable, "x" is Property
+    let tokens = collect("fn foo():\n    p.x = 5\nend");
+    assert!(has_token(&tokens, 1, 4, &TokenType::Variable, TokenModifiers::NONE),
+        "Expected Variable for 'p' at (1, 4), got: {:?}", tokens);
+    assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
+        "Expected Property for 'x', got: {:?}", tokens);
+}
+
+// ───────────────────────── Declaration ─────────────────────────
+
+#[test]
+fn test_declaration_type_is_type_token() {
+    // "int x = 5" -> "int" is Type
+    let tokens = collect("fn foo():\n    int x = 5\nend");
+    assert!(!find_type(&tokens, &TokenType::Type).is_empty(),
+        "Expected Type token for 'int', got: {:?}", tokens);
+}
+
+#[test]
+fn test_declaration_name_is_variable_declaration() {
+    // "int x = 5" -> "x" is Variable + DECLARATION
+    let tokens = collect("fn foo():\n    int x = 5\nend");
+    let vars = find_type(&tokens, &TokenType::Variable);
+    let decls = find_modifier(vars, TokenModifiers::DECLARATION);
+    assert!(!decls.is_empty(),
+        "Expected Variable+DECLARATION for 'x', got: {:?}", tokens);
+}
+
+#[test]
+fn test_global_declaration() {
+    // global declaration outside function
+    let tokens = collect("int x = 5");
+    assert!(!find_type(&tokens, &TokenType::Type).is_empty(),
+        "Expected Type token for global 'int', got: {:?}", tokens);
+    let vars = find_type(&tokens, &TokenType::Variable);
+    assert!(!find_modifier(vars, TokenModifiers::DECLARATION).is_empty(),
+        "Expected Variable+DECLARATION for global 'x', got: {:?}", tokens);
+}
+
+// ───────────────────────── Constants ─────────────────────────
+
+#[test]
+fn test_integer_constant_is_number() {
+    let tokens = collect("fn foo():\n    a = 42\nend");
+    assert!(!find_type(&tokens, &TokenType::Number).is_empty(),
+        "Expected Number token for integer constant, got: {:?}", tokens);
+}
+
+#[test]
+fn test_float_constant_is_number() {
+    let tokens = collect("fn foo():\n    a = 3.14\nend");
+    assert!(!find_type(&tokens, &TokenType::Number).is_empty(),
+        "Expected Number token for float constant, got: {:?}", tokens);
+}
+
+#[test]
+fn test_boolean_constant_is_keyword() {
+    let tokens = collect("fn foo():\n    a = true\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.len() >= 2,
+        "Expected keyword tokens including 'true', got: {:?}", tokens);
+}
+
+// ───────────────────────── Macro if / macro for ─────────────────────────
+
+#[test]
+fn test_macro_if_macro_keyword_token() {
+    // "macro if true:" -> "macro" at col 0 is Keyword
+    let src = "macro if true:\n    pass\nend";
+    let tokens = collect(src);
+    assert!(has_token(&tokens, 0, 0, &TokenType::Keyword, TokenModifiers::NONE),
+        "Expected Keyword for 'macro' at (0, 0), got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_if_end_keyword_token() {
+    let src = "macro if true:\n    pass\nend";
+    let tokens = collect(src);
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected end keyword on line 2, got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_if_elseif_keyword_token() {
+    // macro if with elseif
+    let src = "macro if true:\n    pass\nelseif false:\n    pass\nend";
+    let tokens = collect(src);
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected elseif keyword token on line 2, got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_if_else_keyword_token() {
+    let src = "macro if true:\n    pass\nelse:\n    pass\nend";
+    let tokens = collect(src);
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected else keyword token on line 2, got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_for_macro_keyword_token() {
+    // "macro for i = 0:5:" -> "macro" at col 0 is Keyword
+    let src = "macro for i = 0:5:\n    pass\nend";
+    let tokens = collect(src);
+    assert!(has_token(&tokens, 0, 0, &TokenType::Keyword, TokenModifiers::NONE),
+        "Expected Keyword for 'macro' at (0, 0), got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_for_index_is_variable_declaration() {
+    let src = "macro for i = 0:5:\n    pass\nend";
+    let tokens = collect(src);
+    let vars = find_type(&tokens, &TokenType::Variable);
+    let decls = find_modifier(vars, TokenModifiers::DECLARATION);
+    assert!(!decls.is_empty(),
+        "Expected Variable+DECLARATION for macro for index 'i', got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_for_end_keyword_token() {
+    let src = "macro for i = 0:5:\n    pass\nend";
+    let tokens = collect(src);
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected end keyword on line 2, got: {:?}", tokens);
 }
