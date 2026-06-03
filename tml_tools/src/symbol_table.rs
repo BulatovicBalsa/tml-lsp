@@ -219,9 +219,9 @@ fn expr_to_string(e: &Expression) -> String {
         Expression::MathExpression(MathExpression::PostfixExpression(
             PostfixExpression::Constant(Constant::Integer(i))
         )) => match i {
-            Integer::C1(c) => c.value.clone(),
-            Integer::C2(c) => c.value.clone(),
-            Integer::C3(c) => c.value.clone(),
+            Integer::C1(c) => c.value.clone().value,
+            Integer::C2(c) => c.value.clone().value,
+            Integer::C3(c) => c.value.clone().value,
         },
         Expression::MathExpression(MathExpression::PostfixExpression(
             PostfixExpression::RValue(r)

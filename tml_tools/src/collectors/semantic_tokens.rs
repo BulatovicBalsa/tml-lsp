@@ -1,4 +1,4 @@
-use tml_parser::tml_actions::{FunctionDefinition, SimpleTypeSpec, TranslationUnit, TypeSpec};
+use tml_parser::tml_actions::{Boolean, Constant, FunctionCall, FunctionDefinition, Integer, PostfixExpression, SimpleTypeSpec, TranslationUnit, TypeSpec, UnsignedInteger};
 use tml_parser::visitor::AstVisitor;
 use crate::position::SourcePosition;
 
@@ -112,5 +112,50 @@ impl AstVisitor for SemanticTokenCollector {
 
         let end_pos = SourcePosition::from_rustemo(&f.end_t.position);
         self.push(end_pos.line as u32, end_pos.column as u32, f.end_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
+    }
+
+    fn visit_postfix(&mut self, e: &PostfixExpression) {
+        if let PostfixExpression::RValue(r) = e {
+            let names = &r._ref.names;
+
+            // First identifier is always Variable (simple var or namespace root)
+            let first = &names[0];
+            let pos = SourcePosition::from_rustemo(&first.position);
+            self.push(pos.line as u32, pos.column as u32,
+                      first.value.len(), TokenType::Variable, TokenModifiers::NONE);
+
+            // Remaining identifiers in dot access are Property (p.x, p.gain.value)
+            for id in &names[1..] {
+                let pos = SourcePosition::from_rustemo(&id.position);
+                self.push(pos.line as u32, pos.column as u32,
+                          id.value.len(), TokenType::Property, TokenModifiers::NONE);
+            }
+        }
+        if let PostfixExpression::Constant(c) = e {
+            let (pos, len) = match c {
+                Constant::Integer(i) => match i {
+                    Integer::C1(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                    Integer::C2(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                    Integer::C3(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                },
+                Constant::UnsignedInteger(u) => match u {
+                    UnsignedInteger::C1(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                    UnsignedInteger::C2(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                    UnsignedInteger::C3(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                },
+                Constant::TmlFloat(f) => (SourcePosition::from_rustemo(&f.value.position), f.value.value.len()),
+                Constant::TmlString(s) => (SourcePosition::from_rustemo(&s.value.position), s.value.value.len()),
+                Constant::Boolean(b) => match b {
+                    Boolean::C1(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                    Boolean::C2(c) => (SourcePosition::from_rustemo(&c.value.position), c.value.value.len()),
+                },
+            };
+            self.push(pos.line as u32, pos.column as u32, len, TokenType::Number, TokenModifiers::NONE);
+        }
+    }
+
+    fn visit_function_call(&mut self, f: &FunctionCall) {
+        let id = SourcePosition::from_rustemo(&f.id.position);
+        self.push(id.line as u32, id.column as u32, f.id.value.len(), TokenType::Function, TokenModifiers::NONE);
     }
 }

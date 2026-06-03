@@ -173,3 +173,40 @@ fn test_derived_type_parameter_name_is_declaration() {
     assert_eq!(decl_params.len(), 1,
         "Expected 1 Parameter+DECLARATION for 'x', got: {:?}", tokens);
 }
+
+// ───────────────────────── Function call arguments ─────────────────────────
+
+#[test]
+fn test_function_call_name_is_function_token() {
+    let tokens = collect("fn bar():\n    a = foo(x, y)\nend");
+    assert!(has_token(&tokens, 1, 8, &TokenType::Function, TokenModifiers::NONE),
+        "Expected Function token for 'foo' call at (1, 8), got: {:?}", tokens);
+}
+
+#[test]
+fn test_function_call_simple_argument_is_variable() {
+    // "foo(x)" -> argument "x" is Variable
+    let tokens = collect("fn bar():\n    a = foo(x)\nend");
+    let vars = find_type(&tokens, &TokenType::Variable);
+    assert!(vars.iter().any(|t| t.modifiers == TokenModifiers::NONE),
+        "Expected Variable token for argument 'x', got: {:?}", tokens);
+}
+
+#[test]
+fn test_function_call_multiple_arguments_are_variables() {
+    // "name(x, 2)" -> x is Variable, 2 is skipped (Constant has no position)
+    // fn bar():\n    a = name(x, y)\nend
+    let tokens = collect("fn bar():\n    a = name(x, y)\nend");
+    let vars = find_type(&tokens, &TokenType::Variable);
+    // x and y should be Variable tokens (plus 'a' from assignment)
+    assert!(vars.len() >= 2,
+        "Expected at least 2 Variable tokens for x and y arguments, got: {:?}", tokens);
+}
+
+#[test]
+fn test_function_call_property_argument() {
+    // "foo(p.x)" -> p is Variable, x is Property
+    let tokens = collect("fn bar():\n    a = foo(p.x)\nend");
+    assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
+        "Expected Property token for 'x' in p.x argument, got: {:?}", tokens);
+}

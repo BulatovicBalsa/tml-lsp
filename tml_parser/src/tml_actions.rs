@@ -8,42 +8,16 @@ pub type Input = str;
 pub type Ctx<'i> = Context<'i, Input>;
 #[allow(dead_code)]
 pub type Token<'i> = RustemoToken<'i, Input, TokenKind>;
-pub type IntegerConst = String;
-pub fn integer_const(_ctx: &Ctx, token: Token) -> IntegerConst {
-    token.value.into()
-}
-pub type UnsignedIntegerConst = String;
-pub fn unsigned_integer_const(_ctx: &Ctx, token: Token) -> UnsignedIntegerConst {
-    token.value.into()
-}
-pub type HexadecimalConst = String;
-pub fn hexadecimal_const(_ctx: &Ctx, token: Token) -> HexadecimalConst {
-    token.value.into()
-}
-pub type UnsignedHexadecimalConst = String;
-pub fn unsigned_hexadecimal_const(_ctx: &Ctx, token: Token) -> UnsignedHexadecimalConst {
-    token.value.into()
-}
-pub type BinaryConst = String;
-pub fn binary_const(_ctx: &Ctx, token: Token) -> BinaryConst {
-    token.value.into()
-}
-pub type UnsignedBinaryConst = String;
-pub fn unsigned_binary_const(_ctx: &Ctx, token: Token) -> UnsignedBinaryConst {
-    token.value.into()
-}
-pub type FloatConst = String;
-pub fn float_const(_ctx: &Ctx, token: Token) -> FloatConst {
-    token.value.into()
-}
-pub type TrueConst = String;
-pub fn true_const(_ctx: &Ctx, token: Token) -> TrueConst {
-    token.value.into()
-}
-pub type FalseConst = String;
-pub fn false_const(_ctx: &Ctx, token: Token) -> FalseConst {
-    token.value.into()
-}
+keyword_token!(IntegerConst, integer_const);
+keyword_token!(UnsignedIntegerConst, unsigned_integer_const);
+keyword_token!(HexadecimalConst, hexadecimal_const);
+keyword_token!(UnsignedHexadecimalConst, unsigned_hexadecimal_const);
+keyword_token!(BinaryConst, binary_const);
+keyword_token!(UnsignedBinaryConst, unsigned_binary_const);
+keyword_token!(FloatConst, float_const);
+keyword_token!(TrueConst, true_const);
+keyword_token!(FalseConst, false_const);
+keyword_token!(StringConst, string_const);
 #[derive(Debug, Clone)]
 pub struct HeaderColon {
     pub value: String,
@@ -61,10 +35,6 @@ keyword_token!(SizeKw, size_kw);
 keyword_token!(NumelKw, numel_kw);
 keyword_token!(RowsKw, rows_kw);
 keyword_token!(ColsKw, cols_kw);
-pub type StringConst = String;
-pub fn string_const(_ctx: &Ctx, token: Token) -> StringConst {
-    token.value.into()
-}
 keyword_token!(Id, id);
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {

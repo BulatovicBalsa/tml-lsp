@@ -439,8 +439,8 @@ impl Format for Constant {
         match self {
             Constant::Integer(c)         => c.format(0),
             Constant::UnsignedInteger(c) => c.format(0),
-            Constant::TmlFloat(c)        => c.value.clone(),
-            Constant::TmlString(c)       => c.value.clone(),
+            Constant::TmlFloat(c)        => c.value.clone().value,
+            Constant::TmlString(c)       => c.value.clone().value,
             Constant::Boolean(c)         => c.format(0),
         }
     }
@@ -449,9 +449,9 @@ impl Format for Constant {
 impl Format for Integer {
     fn format(&self, _indent: usize) -> String {
         match self {
-            Integer::C1(c) => c.value.clone(),
-            Integer::C2(c) => c.value.clone(),
-            Integer::C3(c) => c.value.clone(),
+            Integer::C1(c) => c.value.clone().value,
+            Integer::C2(c) => c.value.clone().value,
+            Integer::C3(c) => c.value.clone().value,
         }
     }
 }
@@ -459,9 +459,9 @@ impl Format for Integer {
 impl Format for UnsignedInteger {
     fn format(&self, _indent: usize) -> String {
         match self {
-            UnsignedInteger::C1(c) => c.value.clone(),
-            UnsignedInteger::C2(c) => c.value.clone(),
-            UnsignedInteger::C3(c) => c.value.clone(),
+            UnsignedInteger::C1(c) => c.value.clone().value,
+            UnsignedInteger::C2(c) => c.value.clone().value,
+            UnsignedInteger::C3(c) => c.value.clone().value,
         }
     }
 }
