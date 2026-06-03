@@ -401,3 +401,39 @@ fn test_macro_for_end_keyword_token() {
     assert!(kws.iter().any(|t| t.line == 2),
         "Expected end keyword on line 2, got: {:?}", tokens);
 }
+
+#[test]
+fn test_macro_if_if_keyword_token() {
+    // "macro if true:" -> "if" keyword should also be colored
+    let src = "macro if true:\n    pass\nend";
+    let tokens = collect(src);
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    // expect: macro (col 0), if (col 6), end (line 2)
+    assert!(kws.iter().any(|t| t.line == 0 && t.col > 0),
+        "Expected 'if' keyword token on line 0 after 'macro', got: {:?}", tokens);
+}
+
+#[test]
+fn test_macro_if_has_both_macro_and_if_keywords() {
+    let src = "macro if x == 5:\n    pass\nend";
+    let tokens = collect(src);
+    let kws_on_line_0: Vec<_> = find_type(&tokens, &TokenType::Keyword)
+        .into_iter()
+        .filter(|t| t.line == 0)
+        .collect();
+    assert_eq!(kws_on_line_0.len(), 2,
+        "Expected both 'macro' and 'if' keyword tokens on line 0, got: {:?}", kws_on_line_0);
+}
+
+#[test]
+fn test_macro_for_for_keyword_token() {
+    // "macro for i = 0:5:" -> "for" keyword should also be colored
+    let src = "macro for i = 0:5:\n    pass\nend";
+    let tokens = collect(src);
+    let kws_on_line_0: Vec<_> = find_type(&tokens, &TokenType::Keyword)
+        .into_iter()
+        .filter(|t| t.line == 0)
+        .collect();
+    assert_eq!(kws_on_line_0.len(), 2,
+        "Expected both 'macro' and 'for' keyword tokens on line 0, got: {:?}", kws_on_line_0);
+}

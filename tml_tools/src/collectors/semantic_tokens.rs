@@ -287,7 +287,7 @@ impl AstVisitor for SemanticTokenCollector {
                 }
                 Constant::Boolean(b) => {
                     let (pos, len) = const_pos_len!(b, Boolean::C1, Boolean::C2);
-                    self.push(pos.line as u32, pos.column as u32, len, TokenType::Keyword, TokenModifiers::NONE);
+                    self.push(pos.line as u32, pos.column as u32, len, TokenType::Type, TokenModifiers::DECLARATION);
                 }
             }
         }
@@ -299,24 +299,25 @@ impl AstVisitor for SemanticTokenCollector {
     }
 
     fn visit_macro_for(&mut self, m: &MacroFor) {
-        // "macro" keyword
         let macro_pos = SourcePosition::from_rustemo(&m.macro_t.position);
         self.push(macro_pos.line as u32, macro_pos.column as u32, m.macro_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
-        // for index variable
+
+        let for_pos = SourcePosition::from_rustemo(&m.body.for_t.position);
+        self.push(for_pos.line as u32, for_pos.column as u32, m.body.for_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
+
         let idx_pos = SourcePosition::from_rustemo(&m.body.header.idx.position);
         self.push(idx_pos.line as u32, idx_pos.column as u32, m.body.header.idx.value.len(), TokenType::Variable, TokenModifiers::DECLARATION);
-        // end keyword
+
         let end_pos = SourcePosition::from_rustemo(&m.body.end_t.position);
         self.push(end_pos.line as u32, end_pos.column as u32, m.body.end_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
     }
-
     fn visit_macro_if(&mut self, m: &MacroIf) {
-        // "macro" keyword
         let macro_pos = SourcePosition::from_rustemo(&m.macro_t.position);
         self.push(macro_pos.line as u32, macro_pos.column as u32, m.macro_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
-        // end keyword
+
+        let if_pos = SourcePosition::from_rustemo(&m.body.if_t.position);
+        self.push(if_pos.line as u32, if_pos.column as u32, m.body.if_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
+
         let end_pos = SourcePosition::from_rustemo(&m.body.end_t.position);
         self.push(end_pos.line as u32, end_pos.column as u32, m.body.end_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
-        // elseif and else are handled by visit_else_if_clause and visit_else_clause
-    }
-}
+    }}
