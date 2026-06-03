@@ -355,11 +355,11 @@ impl Format for InputExpression {
 impl Format for AttributeAccess {
     fn format(&self, indent: usize) -> String {
         let attr = match &self.attr {
-            Attribute::LenKw(s)   => s.clone(),
-            Attribute::SizeKw(s)  => s.clone(),
-            Attribute::NumelKw(s) => s.clone(),
-            Attribute::RowsKw(s)  => s.clone(),
-            Attribute::ColsKw(s)  => s.clone(),
+            Attribute::LenKw(s)   => s.clone().value,
+            Attribute::SizeKw(s)  => s.clone().value,
+            Attribute::NumelKw(s) => s.clone().value,
+            Attribute::RowsKw(s)  => s.clone().value,
+            Attribute::ColsKw(s)  => s.clone().value,
         };
         format!("{}{}", self.expr.format(indent), attr)
     }

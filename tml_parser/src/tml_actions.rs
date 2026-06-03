@@ -55,54 +55,16 @@ pub fn header_colon(_ctx: &Ctx, token: Token) -> HeaderColon {
         position: _ctx.position(),
     }
 }
-// pub type TypeKw = String;
-// pub fn type_kw(_ctx: &Ctx, token: Token) -> TypeKw {
-//     token.value.into()
-// }
-pub type LenKw = String;
-pub fn len_kw(_ctx: &Ctx, token: Token) -> LenKw {
-    token.value.into()
-}
-pub type SizeKw = String;
-pub fn size_kw(_ctx: &Ctx, token: Token) -> SizeKw {
-    token.value.into()
-}
-pub type NumelKw = String;
-pub fn numel_kw(_ctx: &Ctx, token: Token) -> NumelKw {
-    token.value.into()
-}
-pub type RowsKw = String;
-pub fn rows_kw(_ctx: &Ctx, token: Token) -> RowsKw {
-    token.value.into()
-}
-pub type ColsKw = String;
-pub fn cols_kw(_ctx: &Ctx, token: Token) -> ColsKw {
-    token.value.into()
-}
+keyword_token!(TypeKw, type_kw);
+keyword_token!(LenKw, len_kw);
+keyword_token!(SizeKw, size_kw);
+keyword_token!(NumelKw, numel_kw);
+keyword_token!(RowsKw, rows_kw);
+keyword_token!(ColsKw, cols_kw);
 pub type StringConst = String;
 pub fn string_const(_ctx: &Ctx, token: Token) -> StringConst {
     token.value.into()
 }
-// #[derive(Debug, Clone)]
-// pub struct Id {
-//     pub value: String,
-//     pub position: Position,
-// }
-// pub fn id(_ctx: &Ctx, token: Token) -> Id {
-//     let value: String = token.value.into();
-//     let pos_start = _ctx.position().line_col.unwrap().column - value.len() + 1;
-//     Id {
-//         value,
-//         position: Position {
-//             pos: _ctx.position().pos,
-//             line_col: Some(LineColumn {
-//                 line: _ctx.position().line_col.unwrap().line,
-//                 column: pos_start,
-//             }),
-//         },
-//     }
-// }
-keyword_token!(TypeKw, type_kw);
 keyword_token!(Id, id);
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
