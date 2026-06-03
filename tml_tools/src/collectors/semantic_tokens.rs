@@ -67,14 +67,12 @@ impl SemanticTokenCollector {
                     SimpleTypeSpec::StrT(t)  => (SourcePosition::from_rustemo(&t.position), t.value.len()),
                     SimpleTypeSpec::CharT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
                 };
-                self.push(pos.line as u32, pos.column as u32, len,
-                          TokenType::Type, TokenModifiers::NONE);
+                self.push(pos.line as u32, pos.column as u32, len, TokenType::Type, TokenModifiers::NONE);
             }
             TypeSpec::DerivedType(dt) => {
                 for id in &dt.name.names {
                     let pos = SourcePosition::from_rustemo(&id.position);
-                    self.push(pos.line as u32, pos.column as u32,
-                              id.value.len(), TokenType::Type, TokenModifiers::NONE);
+                    self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Parameter, TokenModifiers::NONE);
                 }
                 let type_kw_pos = SourcePosition::from_rustemo(&dt.type_kw.position);
                 self.push(type_kw_pos.line as u32, type_kw_pos.column as u32, dt.type_kw.value.len(), TokenType::Type, TokenModifiers::NONE)

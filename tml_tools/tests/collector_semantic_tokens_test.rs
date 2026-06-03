@@ -19,6 +19,10 @@ fn find_type<'a>(tokens: &'a [RawToken], token_type: &TokenType) -> Vec<&'a RawT
     tokens.iter().filter(|t| t.token_type.clone() as u32 == ty).collect()
 }
 
+fn find_modifier(tokens: Vec<&RawToken>, token_modifier: u32) -> Vec<&RawToken> {
+    tokens.into_iter().filter(|t| t.modifiers == token_modifier).collect()
+}
+
 fn has_token(tokens: &[RawToken], line: u32, col: u32, token_type: &TokenType, modifiers: u32) -> bool {
     let ty = token_type.clone() as u32;
     tokens.iter().any(|t| {
@@ -130,4 +134,42 @@ fn test_multiple_functions() {
     let src = "fn foo():\n    pass\nend\nfn bar():\n    pass\nend";
     let tokens = collect(src);
     assert_eq!(find_type(&tokens, &TokenType::Function).len(), 2, "Expected 2 function name tokens");
+}
+
+#[test]
+fn test_derived_type_first_identifier_is_parameter() {
+    // "p" at start of dot access is Parameter
+    let tokens = collect("fn foo(p.MyType.type x):\n    pass\nend");
+    assert!(has_token(&tokens, 0, 7, &TokenType::Parameter, TokenModifiers::NONE),
+        "Expected Parameter for 'p' at (0, 7), got: {:?}", tokens);
+}
+
+#[test]
+fn test_derived_type_middle_identifiers_are_parameter() {
+    // "p.someId.type a" -> p and someId are Parameter (no DECLARATION)
+    let tokens = collect("fn foo(p.someId.type x):\n    pass\nend");
+    let params = find_type(&tokens, &TokenType::Parameter);
+    let dot_params = find_modifier(params, TokenModifiers::NONE);
+    assert_eq!(dot_params.len(), 2,
+        "Expected 2 Parameter tokens for p.someId, got: {:?}", tokens);
+}
+
+#[test]
+fn test_derived_type_type_at_end_is_type_token() {
+    // ".type" at end of dot access is TokenType::Type
+    let tokens = collect("fn foo(p.someId.type x):\n    pass\nend");
+    assert!(!find_type(&tokens, &TokenType::Type).is_empty(),
+        "Expected Type token for 'type' at end of dot access, got: {:?}", tokens);
+}
+
+#[test]
+fn test_derived_type_parameter_name_is_declaration() {
+    // parameter name after derived type is Parameter + DECLARATION
+    let tokens = collect("fn foo(p.someId.type x):\n    pass\nend");
+    let decl_params: Vec<_> = find_type(&tokens, &TokenType::Parameter)
+        .into_iter()
+        .filter(|t| t.modifiers == TokenModifiers::DECLARATION)
+        .collect();
+    assert_eq!(decl_params.len(), 1,
+        "Expected 1 Parameter+DECLARATION for 'x', got: {:?}", tokens);
 }
