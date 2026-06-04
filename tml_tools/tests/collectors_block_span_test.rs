@@ -6,8 +6,9 @@ use tml_tools::formatter::INDENT;
 
 fn span(header_line: u32, end_line: u32, level: usize, kind: BlockKind) -> BlockSpan {
     BlockSpan {
-        header: KeywordSpan { line: header_line, col: 0, len: 2 },
-        end:    KeywordSpan { line: end_line,    col: 0, len: 3 },
+        header:    KeywordSpan { line: header_line, col: 0, len: 2 },
+        end:       KeywordSpan { line: end_line,    col: 0, len: 3 },
+        block_end: KeywordSpan { line: end_line,    col: 0, len: 3 },
         body_indent_level: level,
         body_col: level * 4,
         kind,
