@@ -1,6 +1,7 @@
 use crate::checkers::function_call::{infer_builtin_return_type, lookup_builtin};
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
 use tml_parser::tml_actions::*;
+use crate::constants::RESERVED_NAMESPACES;
 // ───────────────────────── Type promotion ─────────────────────────
 
 /// Returns the more general of two numeric types.
@@ -101,8 +102,6 @@ fn infer_constant(c: &Constant) -> Option<SymbolType> {
 }
 
 // ───────────────────────── RValue (variable reference) ─────────────────────────
-
-const RESERVED_NAMESPACES: &[&str] = &["t", "p", "n"];
 
 fn infer_rvalue(r: &RValue, table: &SymbolTable, scope: &Scope) -> Option<SymbolType> {
     let dot = &r._ref;

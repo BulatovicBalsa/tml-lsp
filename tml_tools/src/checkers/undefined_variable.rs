@@ -1,10 +1,9 @@
 use tml_parser::tml_actions::*;
+use crate::constants::RESERVED_NAMESPACES;
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
 use crate::symbol_table::{Scope, SymbolTable, dot_access_to_string};
 use crate::visitor::{AstVisitor};
-
-const RESERVED_NAMESPACES: &[&str] = &["t", "p", "n"];
 
 fn is_namespace_root(name: &str) -> bool {
     RESERVED_NAMESPACES.contains(&name)

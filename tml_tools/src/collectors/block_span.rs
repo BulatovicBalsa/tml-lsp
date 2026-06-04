@@ -1,4 +1,4 @@
-use crate::formatter::INDENT;
+use crate::constants::INDENT;
 use crate::position::SourcePosition;
 use crate::visitor::AstVisitor;
 use tml_parser::tml_actions::{

@@ -1,8 +1,8 @@
+use crate::constants::INDENT;
+
 pub mod expressions;
 pub mod statements;
 pub mod types;
-
-pub const INDENT: &str = "    "; // 4 spaces
 
 pub trait Format {
     fn format(&self, indent: usize) -> String;

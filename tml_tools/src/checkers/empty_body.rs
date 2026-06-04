@@ -1,5 +1,5 @@
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
-use crate::formatter::INDENT;
+use crate::constants::INDENT;
 use crate::position::SourcePosition;
 use crate::symbol_table::SymbolTable;
 use crate::visitor::AstVisitor;

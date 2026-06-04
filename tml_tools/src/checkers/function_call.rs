@@ -1,17 +1,10 @@
 use tml_parser::tml_actions::*;
+use crate::constants;
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
 use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
 use crate::type_inference::infer_type;
 use crate::visitor::AstVisitor;
-
-// ───────────────────────── Entry functions ─────────────────────────
-
-const ENTRY_FUNCTIONS: &[&str] = &["init_fnc", "output_fnc", "update_fnc"];
-
-pub fn is_entry_function(name: &str) -> bool {
-    ENTRY_FUNCTIONS.contains(&name)
-}
 
 // ───────────────────────── Built-ins ─────────────────────────
 
@@ -197,7 +190,7 @@ impl<'a> AstVisitor for FunctionCallChecker<'a> {
             }
         }
 
-        if is_entry_function(name) {
+        if constants::is_entry_function(name) {
             self.errors.push(CallError::EntryFunctionCall {
                 name: name.clone(),
                 scope: scope.clone(),

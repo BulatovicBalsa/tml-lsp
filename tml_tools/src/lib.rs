@@ -6,3 +6,4 @@ mod position;
 pub mod diagnostics;
 pub mod checkers;
 pub mod collectors;
+pub mod constants;

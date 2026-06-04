@@ -2,7 +2,7 @@ use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::collectors::block_span::{find_indent, find_enclosing_block, BlockKind, BlockSpan, BlockSpanCollector, KeywordSpan};
-use tml_tools::formatter::INDENT;
+use tml_tools::constants::INDENT;
 
 fn span(header_line: u32, end_line: u32, level: usize, kind: BlockKind) -> BlockSpan {
     BlockSpan {

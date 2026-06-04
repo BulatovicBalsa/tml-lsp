@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use tml_tools::collectors::block_span::{find_enclosing_block, find_indent, BlockKind};
-use tml_tools::formatter::INDENT;
+use tml_tools::constants::INDENT;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
