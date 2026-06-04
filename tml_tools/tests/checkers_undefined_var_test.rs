@@ -272,3 +272,49 @@ fn test_all_namespaces_valid() {
     );
     assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
 }
+
+// ───────────────────────── Namespace assignment ─────────────────────────
+
+#[test]
+fn test_bare_namespace_assignment_is_error() {
+    // "p = 5" assigns to bare namespace root — should be an error
+    let errors = check("fn test():\n    p = 5\nend");
+    assert!(has_redeclaration(&errors, "p"),
+        "Expected redeclaration error for 'p = 5', got: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_dot_access_assignment_is_ok() {
+    // "p.x = 5" assigns to a property, not the namespace root — should be valid
+    let errors = check("fn test():\n    p.x = 5\nend");
+    let has_error = errors.iter().any(|e| matches!(e,
+        CheckError::RedeclaredNamespace { name, .. } if name.starts_with('p')
+    ));
+    assert!(!has_error,
+        "'p.x = 5' should not trigger redeclaration error, got: {:?}", errors);
+}
+
+#[test]
+fn test_bare_t_assignment_is_error() {
+    let errors = check("fn test():\n    t = 5\nend");
+    assert!(has_redeclaration(&errors, "t"),
+        "Expected redeclaration error for 't = 5', got: {:?}", errors);
+}
+
+#[test]
+fn test_bare_n_assignment_is_error() {
+    let errors = check("fn test():\n    n = 5\nend");
+    assert!(has_redeclaration(&errors, "n"),
+        "Expected redeclaration error for 'n = 5', got: {:?}", errors);
+}
+
+#[test]
+fn test_namespace_deep_dot_access_assignment_is_ok() {
+    // "t.s_ctrl.length = 5" - deep dot access is also valid
+    let errors = check("fn test():\n    t.s_ctrl.length = 5\nend");
+    let has_error = errors.iter().any(|e| matches!(e,
+        CheckError::RedeclaredNamespace { .. }
+    ));
+    assert!(!has_error,
+        "Deep namespace dot access should not trigger redeclaration error, got: {:?}", errors);
+}

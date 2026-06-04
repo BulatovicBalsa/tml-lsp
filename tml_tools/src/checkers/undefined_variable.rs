@@ -92,7 +92,7 @@ impl<'a> UndefinedVariableChecker<'a> {
             None => return,
         };
         let root = first_id.value.as_str();
-        if is_reserved_namespace(root) {
+        if is_reserved_namespace(root) && dot.names.len() == 1 {
             self.errors.push(CheckError::RedeclaredNamespace {
                 name: dot_access_to_string(dot),
                 position: SourcePosition::from_rustemo(&first_id.position),
@@ -122,6 +122,17 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     fn visit_statement(&mut self, stmt: &Statement) {
         if let Statement::DeclarationStatement(d) = stmt {
             self.check_namespace_redeclaration(&d.id);
+        }
+    }
+
+    fn visit_assignment(&mut self, a: &AssignmentStatement) {
+        match a {
+            AssignmentStatement::VarAssignmentStatement(v) => {
+                self.check_namespace_redeclaration(&v.var)
+            }
+            AssignmentStatement::TensorAssignmentStatement(t) => {
+                self.check_namespace_redeclaration(&t.tensor.expr)
+            }
         }
     }
 
