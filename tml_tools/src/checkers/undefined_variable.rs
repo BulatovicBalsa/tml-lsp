@@ -1,15 +1,9 @@
-use tml_parser::tml_actions::*;
-use crate::constants::RESERVED_NAMESPACES;
+use crate::constants::is_reserved_namespace;
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
-use crate::symbol_table::{Scope, SymbolTable, dot_access_to_string};
-use crate::visitor::{AstVisitor};
-
-fn is_namespace_root(name: &str) -> bool {
-    RESERVED_NAMESPACES.contains(&name)
-}
-
-// ───────────────────────── Errors ─────────────────────────
+use crate::symbol_table::{dot_access_to_string, Scope, SymbolTable};
+use crate::visitor::AstVisitor;
+use tml_parser::tml_actions::*;
 
 #[derive(Debug, Clone)]
 pub enum CheckError {
@@ -80,7 +74,7 @@ impl<'a> UndefinedVariableChecker<'a> {
 
         // Namespace references are valid only when used with dot access (p.x, t.y, ...).
         // A bare namespace root like `p` alone is treated as an undefined variable.
-        if is_namespace_root(root) && dot.names.len() > 1 {
+        if is_reserved_namespace(root) && dot.names.len() > 1 {
             return;
         }
         if self.table.lookup(root, scope).is_none() {
@@ -98,7 +92,7 @@ impl<'a> UndefinedVariableChecker<'a> {
             None => return,
         };
         let root = first_id.value.as_str();
-        if is_namespace_root(root) {
+        if is_reserved_namespace(root) {
             self.errors.push(CheckError::RedeclaredNamespace {
                 name: dot_access_to_string(dot),
                 position: SourcePosition::from_rustemo(&first_id.position),
