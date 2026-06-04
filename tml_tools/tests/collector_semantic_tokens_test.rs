@@ -537,10 +537,49 @@ fn test_plain_variable_is_not_namespace() {
 
 #[test]
 fn test_namespace_in_assignment_lhs() {
-    // "p.x = 5" -> "p" is Namespace, "x" is Property
     let tokens = collect("fn foo():\n    p.x = 5\nend");
     assert!(!find_type(&tokens, &TokenType::Namespace).is_empty(),
         "Expected Namespace for 'p' in assignment lhs, got: {:?}", tokens);
     assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
         "Expected Property for 'x' in assignment lhs, got: {:?}", tokens);
+}
+
+#[test]
+fn test_pass_is_keyword() {
+    let tokens = collect("fn foo():\n    pass\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 1),
+        "Expected 'pass' keyword token on line 1, got: {:?}", tokens);
+}
+
+#[test]
+fn test_return_is_keyword() {
+    let tokens = collect("fn foo():\n    return\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 1),
+        "Expected 'return' keyword token on line 1, got: {:?}", tokens);
+}
+
+#[test]
+fn test_return_value_is_keyword() {
+    let tokens = collect("fn foo():\n    return 42\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 1),
+        "Expected 'return' keyword token on line 1, got: {:?}", tokens);
+}
+
+#[test]
+fn test_break_is_keyword() {
+    let tokens = collect("fn foo():\n    for i = 0:5:\n        break\n    end\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected 'break' keyword token on line 2, got: {:?}", tokens);
+}
+
+#[test]
+fn test_continue_is_keyword() {
+    let tokens = collect("fn foo():\n    for i = 0:5:\n        continue\n    end\nend");
+    let kws = find_type(&tokens, &TokenType::Keyword);
+    assert!(kws.iter().any(|t| t.line == 2),
+        "Expected 'continue' keyword token on line 2, got: {:?}", tokens);
 }

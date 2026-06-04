@@ -1,4 +1,4 @@
-use tml_parser::tml_actions::{AssignmentStatement, Boolean, Constant, DeclarationStatement, ElseClause, ElseIfClause, ExistsStatement, ExternalDeclaration, FeedthroughStatement, ForIterationStatement, FunctionCall, FunctionDefinition, Id, Integer, IoDeclarationStatement, IoDirection, IoWriteStatement, MacroFor, MacroIf, NotExistsStatement, NotFeedthroughStatement, PostfixExpression, SelectionStatement, SimpleTypeSpec, Statement, TranslationUnit, TypeSpec, UnsignedInteger, WhileIterationStatement};
+use tml_parser::tml_actions::{AssignmentStatement, Boolean, BreakStatement, Constant, ContinueStatement, DeclarationStatement, ElseClause, ElseIfClause, EmptyReturn, ExistsStatement, ExternalDeclaration, FeedthroughStatement, ForIterationStatement, FunctionCall, FunctionDefinition, Id, Integer, IoDeclarationStatement, IoDirection, IoWriteStatement, JumpStatement, MacroFor, MacroIf, NotExistsStatement, NotFeedthroughStatement, PostfixExpression, ReturnStatement, SelectionStatement, SimpleTypeSpec, Statement, TranslationUnit, TypeSpec, UnsignedInteger, WhileIterationStatement};
 use tml_parser::visitor::AstVisitor;
 use crate::constants::is_reserved_namespace;
 use crate::position::SourcePosition;
@@ -181,6 +181,10 @@ impl AstVisitor for SemanticTokenCollector {
         match stmt {
             Statement::DeclarationStatement(d)   => self.push_declaration(d),
             Statement::IoDeclarationStatement(d) => self.push_io_declaration(d),
+            Statement::NoopStatement(n) => {
+                let pos = SourcePosition::from_rustemo(&n.noop.position);
+                self.push(pos.line as u32, pos.column as u32, n.noop.value.len(), TokenType::Keyword, TokenModifiers::NONE);
+            }
             _ => {}
         }
     }
@@ -269,6 +273,26 @@ impl AstVisitor for SemanticTokenCollector {
             IoWriteStatement::TensorIoWriteStatement(t) => self.push_dot_access_lhs(&t.io_tensor.expr.names),
         }
     }
+    
+    fn visit_jump(&mut self, j: &JumpStatement) {
+        let (pos, len) = match j {
+            JumpStatement::BreakStatement(b) => match b {
+                BreakStatement::BreakT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+            },
+            JumpStatement::ContinueStatement(c) => match c {
+                ContinueStatement::ContinueT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+            },
+            JumpStatement::ReturnStatement(r) => match r {
+                ReturnStatement::EmptyReturn(e) => match e {
+                    EmptyReturn::ReturnT(t) => (SourcePosition::from_rustemo(&t.position), t.value.len()),
+                },
+                ReturnStatement::ReturnValue(v) => {
+                    (SourcePosition::from_rustemo(&v.return_t.position), v.return_t.value.len())
+                }
+            },
+        };
+        self.push(pos.line as u32, pos.column as u32, len, TokenType::Keyword, TokenModifiers::NONE);
+    }
 
     fn visit_postfix(&mut self, e: &PostfixExpression) {
         if let PostfixExpression::RValue(r) = e {
@@ -332,6 +356,7 @@ impl AstVisitor for SemanticTokenCollector {
         let end_pos = SourcePosition::from_rustemo(&m.body.end_t.position);
         self.push(end_pos.line as u32, end_pos.column as u32, m.body.end_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
     }
+
     fn visit_macro_if(&mut self, m: &MacroIf) {
         let macro_pos = SourcePosition::from_rustemo(&m.macro_t.position);
         self.push(macro_pos.line as u32, macro_pos.column as u32, m.macro_t.value.len(), TokenType::Keyword, TokenModifiers::NONE);
