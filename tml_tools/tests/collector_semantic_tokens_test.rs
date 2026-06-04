@@ -272,10 +272,10 @@ fn test_assignment_lhs_is_variable() {
 
 #[test]
 fn test_assignment_dot_access_lhs() {
-    // "p.x = 5" -> "p" is Variable, "x" is Property
+    // "p.x = 5" -> "p" is Namespace, "x" is Property
     let tokens = collect("fn foo():\n    p.x = 5\nend");
-    assert!(has_token(&tokens, 1, 4, &TokenType::Variable, TokenModifiers::NONE),
-        "Expected Variable for 'p' at (1, 4), got: {:?}", tokens);
+    assert!(has_token(&tokens, 1, 4, &TokenType::Namespace, TokenModifiers::NONE),
+        "Expected Namespace for 'p' at (1, 4), got: {:?}", tokens);
     assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
         "Expected Property for 'x', got: {:?}", tokens);
 }
@@ -488,4 +488,59 @@ fn test_io_write_dot_access_lhs() {
     let tokens = collect("fn foo():\n    in<int, 0x0> p.x\n    p.x = 5\nend");
     assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
         "Expected Property token for dot access in IO write, got: {:?}", tokens);
+}
+
+#[test]
+fn test_namespace_first_id_is_variable() {
+    let tokens = collect("fn foo():\n    x = t.gain\nend");
+    assert!(has_token(&tokens, 1, 8, &TokenType::Namespace, TokenModifiers::NONE),
+        "Expected Namespace for 't' at (1, 8), got: {:?}", tokens);
+}
+
+#[test]
+fn test_namespace_second_id_is_property() {
+    let tokens = collect("fn foo():\n    x = t.gain\nend");
+    assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
+        "Expected Property for 'gain', got: {:?}", tokens);
+}
+
+#[test]
+fn test_namespace_p_is_namespace_token() {
+    let tokens = collect("fn foo():\n    x = p.input\nend");
+    assert!(!find_type(&tokens, &TokenType::Namespace).is_empty(),
+        "Expected Namespace token for 'p', got: {:?}", tokens);
+}
+
+#[test]
+fn test_namespace_n_is_namespace_token() {
+    let tokens = collect("fn foo():\n    x = n.count\nend");
+    assert!(!find_type(&tokens, &TokenType::Namespace).is_empty(),
+        "Expected Namespace token for 'n', got: {:?}", tokens);
+}
+
+#[test]
+fn test_namespace_deep_chain_rest_are_property() {
+    // "t.s_ctrl.length" -> t=Namespace, s_ctrl=Property, length=Property
+    let tokens = collect("fn foo():\n    x = t.s_ctrl.length\nend");
+    let props = find_type(&tokens, &TokenType::Property);
+    assert!(props.len() >= 2,
+        "Expected at least 2 Property tokens for 's_ctrl' and 'len', got: {:?}", tokens);
+}
+
+#[test]
+fn test_plain_variable_is_not_namespace() {
+    // "myvar" is not a reserved namespace -> Variable, not Namespace
+    let tokens = collect("fn foo():\n    myvar = 5\nend");
+    assert!(find_type(&tokens, &TokenType::Namespace).is_empty(),
+        "Expected no Namespace tokens for plain variable, got: {:?}", tokens);
+}
+
+#[test]
+fn test_namespace_in_assignment_lhs() {
+    // "p.x = 5" -> "p" is Namespace, "x" is Property
+    let tokens = collect("fn foo():\n    p.x = 5\nend");
+    assert!(!find_type(&tokens, &TokenType::Namespace).is_empty(),
+        "Expected Namespace for 'p' in assignment lhs, got: {:?}", tokens);
+    assert!(!find_type(&tokens, &TokenType::Property).is_empty(),
+        "Expected Property for 'x' in assignment lhs, got: {:?}", tokens);
 }

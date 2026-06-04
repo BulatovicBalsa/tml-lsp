@@ -1,5 +1,6 @@
 use tml_parser::tml_actions::{AssignmentStatement, Boolean, Constant, DeclarationStatement, ElseClause, ElseIfClause, ExistsStatement, ExternalDeclaration, FeedthroughStatement, ForIterationStatement, FunctionCall, FunctionDefinition, Id, Integer, IoDeclarationStatement, IoDirection, IoWriteStatement, MacroFor, MacroIf, NotExistsStatement, NotFeedthroughStatement, PostfixExpression, SelectionStatement, SimpleTypeSpec, Statement, TranslationUnit, TypeSpec, UnsignedInteger, WhileIterationStatement};
 use tml_parser::visitor::AstVisitor;
+use crate::constants::is_reserved_namespace;
 use crate::position::SourcePosition;
 
 macro_rules! const_pos_len {
@@ -22,6 +23,7 @@ pub enum TokenType {
     Type = 5,
     Number = 6,
     String = 7,
+    Namespace = 8,
 }
 
 // Token modifier bitmask — must match SemanticTokensLegend modifiers
@@ -70,7 +72,8 @@ impl SemanticTokenCollector {
         let names = &d.id.names;
         let first = &names[0];
         let pos = SourcePosition::from_rustemo(&first.position);
-        self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::DECLARATION);
+        let token_type = if is_reserved_namespace(&first.value) {TokenType::Namespace} else {TokenType::Variable};
+        self.push(pos.line as u32, pos.column as u32, first.value.len(), token_type, TokenModifiers::DECLARATION);
         for id in &names[1..] {
             let pos = SourcePosition::from_rustemo(&id.position);
             self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
@@ -89,7 +92,8 @@ impl SemanticTokenCollector {
         // variable name — declaration
         let first = &d.id.names[0];
         let pos = SourcePosition::from_rustemo(&first.position);
-        self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::DECLARATION);
+        let token_type = if is_reserved_namespace(&first.value) {TokenType::Namespace} else {TokenType::Variable};
+        self.push(pos.line as u32, pos.column as u32, first.value.len(), token_type, TokenModifiers::DECLARATION);
         for id in &d.id.names[1..] {
             let pos = SourcePosition::from_rustemo(&id.position);
             self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
@@ -99,7 +103,8 @@ impl SemanticTokenCollector {
     fn push_dot_access_lhs(&mut self, names: &[Id]) {
         let first = &names[0];
         let pos = SourcePosition::from_rustemo(&first.position);
-        self.push(pos.line as u32, pos.column as u32, first.value.len(), TokenType::Variable, TokenModifiers::NONE);
+        let token_type = if is_reserved_namespace(&first.value) {TokenType::Namespace} else {TokenType::Variable};
+        self.push(pos.line as u32, pos.column as u32, first.value.len(), token_type, TokenModifiers::NONE);
         for id in &names[1..] {
             let pos = SourcePosition::from_rustemo(&id.position);
             self.push(pos.line as u32, pos.column as u32, id.value.len(), TokenType::Property, TokenModifiers::NONE);
@@ -272,8 +277,9 @@ impl AstVisitor for SemanticTokenCollector {
             // First identifier is always Variable (simple var or namespace root)
             let first = &names[0];
             let pos = SourcePosition::from_rustemo(&first.position);
+            let token_type = if is_reserved_namespace(&first.value) {TokenType::Namespace} else {TokenType::Variable};
             self.push(pos.line as u32, pos.column as u32,
-                      first.value.len(), TokenType::Variable, TokenModifiers::NONE);
+                      first.value.len(), token_type, TokenModifiers::NONE);
 
             // Remaining identifiers in dot access are Property (p.x, p.gain.value)
             for id in &names[1..] {
