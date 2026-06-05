@@ -95,6 +95,7 @@ impl std::fmt::Display for CallError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CallError::UndefinedFunction { name, scope, .. } => match scope {
+                Scope::Block(_) |
                 Scope::Global => write!(f, "Undefined function '{}'", name),
                 Scope::Function(fn_name) => {
                     write!(f, "Undefined function '{}' called from '{}'", name, fn_name)
@@ -107,8 +108,9 @@ impl std::fmt::Display for CallError {
                 write!(f, "Named argument '{}' not allowed in call to '{}'", arg_name, function_name)
             }
             CallError::EntryFunctionCall { name, scope, .. } => match scope {
+                Scope::Block(_) |
+                Scope::Function(_) |
                 Scope::Global => write!(f, "Entry function '{}' cannot be called from user code", name),
-                Scope::Function(fn_name) => write!(f, "Entry function '{}' cannot be called from '{}'", name, fn_name),
             },
         }
     }

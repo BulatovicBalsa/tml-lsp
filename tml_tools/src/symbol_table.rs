@@ -25,6 +25,7 @@ pub enum SymbolType {
 pub enum Scope {
     Global,
     Function(String),
+    Block(u32)
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +71,7 @@ pub struct SymbolTableBuilder {
     table: SymbolTable,
     errors: Vec<SymbolError>,
     scope_stack: Vec<Scope>,
+    block_counter: u32,
 }
 
 impl SymbolTableBuilder {
@@ -78,6 +80,7 @@ impl SymbolTableBuilder {
             table: SymbolTable::default(),
             errors: vec![],
             scope_stack: vec![],
+            block_counter: 0,
         }
     }
 
@@ -118,8 +121,8 @@ impl SymbolTableBuilder {
     fn handle_assignment(&mut self, stmt: &AssignmentStatement) {
         if let AssignmentStatement::VarAssignmentStatement(v) = stmt {
             let name = dot_access_to_string(&v.var);
-            let scope = self.current_scope();
-            if self.table.lookup(&name, &scope).is_none() {
+            if self.table.lookup_in_stack(&name, &self.scope_stack).is_none() {
+                let scope = self.current_scope();
                 if let Some(ty) = infer_type(&v.rvalue, &self.table, &scope) {
                     self.add_symbol(&name, ty);
                 }
@@ -138,6 +141,15 @@ impl SymbolTableBuilder {
         } else {
             self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
         }
+    }
+
+    fn enter_block(&mut self) {
+        self.block_counter += 1;
+        self.scope_stack.push(Scope::Block(self.block_counter))
+    }
+
+    fn exit_block(&mut self) {
+        self.scope_stack.pop();
     }
 }
 
@@ -163,6 +175,14 @@ impl AstVisitor for SymbolTableBuilder {
         self.scope_stack.pop();
     }
 
+    fn visit_statement_block(&mut self, _b: &StatementBlock) {
+        self.enter_block();
+    }
+
+    fn leave_statement_block(&mut self, _b: &StatementBlock) {
+        self.exit_block();
+    }
+
     fn visit_statement(&mut self, stmt: &Statement) {
         match stmt {
             Statement::DeclarationStatement(d) => self.handle_declaration(d),
@@ -172,7 +192,13 @@ impl AstVisitor for SymbolTableBuilder {
     }
 
     fn visit_for(&mut self, f: &ForIterationStatement) {
+        // Index variable is added to the block scope opened by visit_statement_block
+        self.enter_block();
         self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
+    }
+
+    fn leave_for(&mut self, _node: &ForIterationStatement) {
+        self.exit_block();
     }
 }
 
@@ -260,6 +286,16 @@ impl SymbolTable {
     /// Look for function signature by name
     pub fn lookup_function(&self, name: &str) -> Option<&FunctionSignature> {
         self.functions.iter().find(|f| f.name == name)
+    }
+
+    pub fn lookup_in_stack(&self, name: &str, stack: &[Scope]) -> Option<&Symbol> {
+        for scope in stack.iter().rev() {
+            if let Some(s) = self.symbols.iter().find(|s| s.name == name && &s.scope == scope) {
+                return Some(s);
+            }
+        }
+        // Always fall back to global scope
+        self.symbols.iter().find(|s| s.name == name && s.scope == Scope::Global)
     }
 
     /// Get all symbols in the given scope

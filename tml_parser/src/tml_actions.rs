@@ -2458,6 +2458,7 @@ impl StatementBlock {
                 stmt.accept(v);
             }
         }
+        v.leave_statement_block(self);
     }
 }
 
@@ -2497,6 +2498,7 @@ impl SelectionStatement {
         if let Some(else_c) = &self.else_clause {
             else_c.accept(v);
         }
+        v.leave_selection(self);
     }
 }
 
@@ -2505,6 +2507,7 @@ impl ElseIfClause {
         v.visit_else_if_clause(self);
         self.condition.accept(v);
         self.elseif_statement_block.accept(v);
+        v.leave_else_if_clause(self);
     }
 }
 
@@ -2512,6 +2515,7 @@ impl ElseClause {
     pub fn accept(&self, v: &mut dyn AstVisitor) {
         v.visit_else_clause(self);
         self.else_statement_block.accept(v);
+        v.leave_else_clause(self);
     }
 }
 
@@ -2534,6 +2538,7 @@ impl ForIterationStatement {
             IteratorExpression::RangeFromStepTo(r) => { r.start.accept(v); r.stop.accept(v); r.step.accept(v); }
         }
         self.body.statement_block.accept(v);
+        v.leave_for(self);
     }
 }
 
@@ -2542,6 +2547,7 @@ impl WhileIterationStatement {
         v.visit_while(self);
         self.condition.accept(v);
         self.statement_block.accept(v);
+        v.leave_while(self);
     }
 }
 
@@ -2550,6 +2556,7 @@ impl ExistsStatement {
         v.visit_exists(self);
         self.statement_block.accept(v);
         if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+        v.leave_exists(self);
     }
 }
 
@@ -2558,6 +2565,7 @@ impl NotExistsStatement {
         v.visit_not_exists(self);
         self.statement_block.accept(v);
         if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+        v.leave_not_exists(self);
     }
 }
 
@@ -2566,6 +2574,7 @@ impl FeedthroughStatement {
         v.visit_feedthrough(self);
         self.statement_block.accept(v);
         if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+        v.leave_feedthrough(self);
     }
 }
 
@@ -2574,6 +2583,7 @@ impl NotFeedthroughStatement {
         v.visit_not_feedthrough(self);
         self.statement_block.accept(v);
         if let Some(else_c) = &self.else_clause { else_c.accept(v); }
+        v.leave_not_feedthrough(self);
     }
 }
 

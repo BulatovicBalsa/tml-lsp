@@ -15,6 +15,7 @@ impl std::fmt::Display for CheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CheckError::UndefinedVariable { name, scope, .. } => match scope {
+                Scope::Block(_) |
                 Scope::Global => write!(f, "Undefined variable '{}'", name),
                 Scope::Function(fn_name) => {
                     write!(f, "Undefined variable '{}' in function '{}'", name, fn_name)
@@ -49,11 +50,12 @@ pub struct UndefinedVariableChecker<'a> {
     table: &'a SymbolTable,
     errors: Vec<CheckError>,
     scope_stack: Vec<Scope>,
+    block_counter: u32,
 }
 
 impl<'a> UndefinedVariableChecker<'a> {
     pub fn new(table: &'a SymbolTable) -> Self {
-        UndefinedVariableChecker { table, errors: vec![], scope_stack: vec![] }
+        UndefinedVariableChecker { table, errors: vec![], scope_stack: vec![], block_counter: 0 }
     }
 
     pub fn current_scope(&self) -> Scope {
@@ -65,22 +67,30 @@ impl<'a> UndefinedVariableChecker<'a> {
         self.errors
     }
 
-    fn check_rvalue(&mut self, dot: &DotAccessExpression, scope: &Scope) {
+    fn enter_block(&mut self) {
+        self.block_counter += 1;
+        self.scope_stack.push(Scope::Block(self.block_counter));
+    }
+
+    fn exit_block(&mut self) {
+        self.scope_stack.pop();
+    }
+
+    fn check_rvalue(&mut self, dot: &DotAccessExpression) {
         let first_id = match dot.names.first() {
             Some(id) => id,
             None => return,
         };
         let root = first_id.value.as_str();
 
-        // Namespace references are valid only when used with dot access (p.x, t.y, ...).
-        // A bare namespace root like `p` alone is treated as an undefined variable.
         if is_reserved_namespace(root) && dot.names.len() > 1 {
             return;
         }
-        if self.table.lookup(root, scope).is_none() {
+        if self.table.lookup_in_stack(root, &self.scope_stack).is_none() {
+            let scope = self.current_scope();
             self.errors.push(CheckError::UndefinedVariable {
                 name: root.to_string(),
-                scope: scope.clone(),
+                scope,
                 position: SourcePosition::from_rustemo(&first_id.position),
             });
         }
@@ -119,10 +129,26 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
         self.scope_stack.pop();
     }
 
+    fn visit_statement_block(&mut self, _b: &StatementBlock) {
+        self.enter_block();
+    }
+
+    fn leave_statement_block(&mut self, _b: &StatementBlock) {
+        self.exit_block();
+    }
+
     fn visit_statement(&mut self, stmt: &Statement) {
         if let Statement::DeclarationStatement(d) = stmt {
             self.check_namespace_redeclaration(&d.id);
         }
+    }
+
+    fn visit_for(&mut self, _node: &ForIterationStatement) {
+        self.enter_block();
+    }
+
+    fn leave_for(&mut self, _node: &ForIterationStatement) {
+        self.exit_block();
     }
 
     fn visit_assignment(&mut self, a: &AssignmentStatement) {
@@ -137,10 +163,8 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     }
 
     fn visit_postfix(&mut self, e: &PostfixExpression) {
-        let scope = self.current_scope();
         if let PostfixExpression::RValue(r) = e {
-            self.check_rvalue(&r._ref, &scope);
-            return; // RValue has no children to traverse
+            self.check_rvalue(&r._ref);
         }
     }
 }

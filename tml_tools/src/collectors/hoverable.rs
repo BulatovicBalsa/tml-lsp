@@ -62,6 +62,7 @@ fn hover_for_variable(name: &str, scope: &Scope, table: &SymbolTable) -> Option<
     let scope_str = match &symbol.scope {
         Scope::Global => "global".to_string(),
         Scope::Function(fn_name) => format!("fn {}", fn_name),
+        Scope::Block(_) => "".to_string()
     };
     Some(format!(
         "```tml\n{}: {}\n```\n*scope: {}*",

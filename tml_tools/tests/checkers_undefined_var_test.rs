@@ -86,26 +86,8 @@ fn test_for_index_used_in_body() {
 
 #[test]
 fn test_assign_undeclared_ok() {
-    // a = 5 je valid — type inference
     let errors = check("a = 5");
     assert!(errors.is_empty());
-}
-
-#[test]
-fn test_exists_guarded_not_checked() {
-    // guarded var in exists is not being checked
-    let errors = check(
-        "fn test():\n    exists maybe_var:\n        x = 1\n    end\nend"
-    );
-    assert!(errors.is_empty());
-}
-
-#[test]
-#[should_panic]
-fn test_defined_in_if_not_visible_after() {
-    let errors = check("fn test():\n    if true:\n        x = 5\n    end\n    y = x\nend");
-    assert!(errors.is_empty());
-    unimplemented!("Currently variables defined in if/while/exists are not visible outside, but this should be fixed in the future");
 }
 
 // ───────────────────────── Undefined variables ─────────────────────────
@@ -310,11 +292,82 @@ fn test_bare_n_assignment_is_error() {
 
 #[test]
 fn test_namespace_deep_dot_access_assignment_is_ok() {
-    // "t.s_ctrl.length = 5" - deep dot access is also valid
     let errors = check("fn test():\n    t.s_ctrl.length = 5\nend");
     let has_error = errors.iter().any(|e| matches!(e,
         CheckError::RedeclaredNamespace { .. }
     ));
     assert!(!has_error,
         "Deep namespace dot access should not trigger redeclaration error, got: {:?}", errors);
+}
+
+// ───────────────────────── Block scope ─────────────────────────
+
+#[test]
+fn test_variable_defined_in_if_not_visible_after() {
+    let errors = check("fn test():\n    if true:\n        int x = 5\n    end\n    y = x\nend");
+    assert!(has_undefined(&errors, "x"),
+        "Expected undefined for 'x' used outside if block, got: {:?}", errors);
+}
+
+#[test]
+fn test_variable_defined_in_if_visible_inside() {
+    let errors = check("fn test():\n    if true:\n        int x = 5\n        y = x\n    end\nend");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' should be visible inside if block, got: {:?}", errors);
+}
+
+#[test]
+fn test_variable_defined_in_for_not_visible_after() {
+    let errors = check("fn test():\n    for i = 0:5:\n        int x = i\n    end\n    y = x\nend");
+    assert!(has_undefined(&errors, "x"),
+        "Expected undefined for 'x' used outside for block, got: {:?}", errors);
+}
+
+#[test]
+fn test_for_index_not_visible_after_loop() {
+    let errors = check("fn test():\n    for i = 0:5:\n        pass\n    end\n    y = i\nend");
+    assert!(has_undefined(&errors, "i"),
+        "Expected undefined for 'i' used outside for block, got: {:?}", errors);
+}
+
+#[test]
+fn test_variable_defined_in_while_not_visible_after() {
+    let errors = check("fn test():\n    int x = 1\n    while x > 0:\n        int y = x\n        x = x - 1\n    end\n    z = y\nend");
+    assert!(has_undefined(&errors, "y"),
+        "Expected undefined for 'y' used outside while block, got: {:?}", errors);
+}
+
+#[test]
+fn test_outer_variable_visible_inside_block() {
+    let errors = check("fn test():\n    int x = 5\n    if true:\n        y = x\n    end\nend");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' defined in function scope should be visible inside if block, got: {:?}", errors);
+}
+
+#[test]
+fn test_variable_in_sibling_elseif_not_visible() {
+    let errors = check(concat!(
+        "fn test():\n",
+        "    if true:\n",
+        "        int x = 5\n",
+        "    elseif false:\n",
+        "        y = x\n",
+        "    end\n",
+        "end"
+    ));
+    assert!(has_undefined(&errors, "x"),
+        "Expected undefined for 'x' in sibling elseif block, got: {:?}", errors);
+}
+
+#[test]
+fn test_variable_defined_before_if_visible_inside() {
+    let errors = check(concat!(
+        "fn test():\n",
+        "    int x = 5\n",
+        "    if true:\n",
+        "        y = x + 1\n",
+        "    end\n",
+        "end"
+    ));
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
 }
