@@ -50,7 +50,7 @@ pub fn infer_builtin_return_type(
     name: &str,
     args: &[&Argument],
     table: &SymbolTable,
-    scope: &Scope,
+    stack: &[Scope],
 ) -> Option<SymbolType> {
     let base = name.trim_end_matches('!');
     match base {
@@ -61,17 +61,17 @@ pub fn infer_builtin_return_type(
                 Argument::C1(a) => &a.value,
                 Argument::C2(a) => &a.value,
             };
-            infer_type(arg_expr, table, scope)
+            infer_type(arg_expr, table, stack)
         }
         "atan2" => {
             if args.len() < 2 { return None; }
             let a1 = match args[0] {
-                Argument::C1(a) => infer_type(&a.value, table, scope),
-                Argument::C2(a) => infer_type(&a.value, table, scope),
+                Argument::C1(a) => infer_type(&a.value, table, stack),
+                Argument::C2(a) => infer_type(&a.value, table, stack),
             }?;
             let a2 = match args[1] {
-                Argument::C1(a) => infer_type(&a.value, table, scope),
-                Argument::C2(a) => infer_type(&a.value, table, scope),
+                Argument::C1(a) => infer_type(&a.value, table, stack),
+                Argument::C2(a) => infer_type(&a.value, table, stack),
             }?;
             Some(crate::type_inference::promote(&a1, &a2))
         }

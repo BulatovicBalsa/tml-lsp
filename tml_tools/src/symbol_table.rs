@@ -132,8 +132,7 @@ impl SymbolTableBuilder {
         if let AssignmentStatement::VarAssignmentStatement(v) = stmt {
             let name = dot_access_to_string(&v.var);
             if self.table.lookup_in_stack(&name, &self.scope_stack).is_none() {
-                let scope = self.current_scope();
-                if let Some(ty) = infer_type(&v.rvalue, &self.table, &scope) {
+                if let Some(ty) = infer_type(&v.rvalue, &self.table, &self.scope_stack) {
                     self.add_symbol(&name, ty);
                 }
             }

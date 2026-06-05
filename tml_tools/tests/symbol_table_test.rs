@@ -162,7 +162,9 @@ fn test_function_params_not_in_global_scope() {
 fn test_local_declaration_in_function() {
     let (table, errors) = build_table("fn test():\n    int x = 5\nend");
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "x", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "x" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'x' in block scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -369,7 +371,9 @@ fn test_infer_type_chain() {
 fn test_infer_type_in_function() {
     let (table, errors) = build_table("fn test():\n    a = 5\nend");
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "a", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'a' in block scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -377,7 +381,9 @@ fn test_infer_type_in_function() {
 fn test_infer_type_from_param_in_function() {
     let (table, errors) = build_table("fn test(real x):\n    a = x\nend");
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "a", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'a' in block scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
 }
 
@@ -385,7 +391,9 @@ fn test_infer_type_from_param_in_function() {
 fn test_infer_type_from_global_in_function() {
     let (table, errors) = build_table("real g = 1.0\nfn test():\n    a = g\nend");
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "a", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'a' in block scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
 }
 
@@ -406,7 +414,10 @@ fn test_function_forward_reference() {
         "fn main():\n    x = foo()\nend\nfn foo() int:\n    return 5\nend"
     );
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "x", "main");
+    // x is in a block scope inside main
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "x" && matches!(s.scope, Scope::Block(_)))
+        .unwrap_or_else(|| panic!("Symbol 'x' not found in any block scope, symbols: {:?}", table.symbols));
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -418,7 +429,9 @@ fn test_infer_type_from_tensor_index() {
         "tensor<int, 3> buf = [1, 2, 3]\nfn test():\n    a = buf[0]\nend"
     );
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "a", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'a' in block scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -428,7 +441,9 @@ fn test_infer_type_from_nested_tensor_index() {
         "tensor<tensor<int, 2>, 3> buf = [[1, 2], [3, 4], [5, 6]]\nfn test():\n    a = buf[0]\nend"
     );
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "a", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'a' in block scope");
     assert_eq!(
         sym.ty,
         SymbolType::Tensor(Box::new(SymbolType::Simple(SimpleTypeKind::Int)), vec!["2".to_string()])
@@ -441,7 +456,9 @@ fn test_infer_type_from_double_tensor_index() {
         "tensor<tensor<int, 2>, 3> buf = [[1, 2], [3, 4], [5, 6]]\nfn test():\n    a = buf[0][1]\nend"
     );
     assert!(errors.is_empty());
-    let sym = get_symbol_in_fn(&table, "a", "test");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'a' in block scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
