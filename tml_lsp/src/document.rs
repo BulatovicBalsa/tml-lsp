@@ -63,7 +63,7 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
                 .collect();
             backend.quick_fixes.write().await.insert(key.clone(), fixes);
 
-            let lsp_diagnostics: Vec<Diagnostic> = diagnostics
+            let mut lsp_diagnostics: Vec<Diagnostic> = diagnostics
                 .iter()
                 .map(|d| {
                     let severity = match d.severity {
@@ -81,6 +81,20 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
                     }
                 })
                 .collect();
+
+            for e in &sym_errors {
+                if let Some(pos) = &e.position {
+                    lsp_diagnostics.push(Diagnostic {
+                        range: Range {
+                            start: Position { line: pos.line as u32, character: pos.column as u32 },
+                            end:   Position { line: pos.line as u32, character: pos.column as u32 + e.symbol_name.len() as u32 },
+                        },
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        message: e.message.clone(),
+                        ..Default::default()
+                    });
+                }
+            }
 
             backend.client.publish_diagnostics(uri, lsp_diagnostics, None).await;
         }

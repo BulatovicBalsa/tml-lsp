@@ -1,4 +1,5 @@
 use tml_parser::tml_actions::*;
+use crate::position::SourcePosition;
 use crate::type_inference::infer_type;
 use crate::visitor::{AstVisitor, opt_iter};
 
@@ -54,13 +55,15 @@ pub struct SymbolTable {
 pub struct SymbolError {
     pub message: String,
     pub symbol_name: String,
+    pub position: Option<SourcePosition>,
 }
 
 impl SymbolError {
-    fn new(symbol_name: &str, message: &str) -> Self {
+    fn new(symbol_name: &str, message: &str, position: Option<SourcePosition>) -> Self {
         SymbolError {
             symbol_name: symbol_name.to_string(),
             message: message.to_string(),
+            position
         }
     }
 }
@@ -100,6 +103,7 @@ impl SymbolTableBuilder {
                     self.errors.push(SymbolError::new(
                         name,
                         &format!("Function '{}' is already defined", name),
+                        Some(SourcePosition::from_rustemo(&f.id.position)),
                     ));
                 } else {
                     self.table.functions.push(self.build_function_signature(f));
@@ -146,6 +150,7 @@ impl SymbolTableBuilder {
             self.errors.push(SymbolError::new(
                 name,
                 &format!("'{}' is already defined in this scope", name),
+                None
             ));
         } else {
             self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
