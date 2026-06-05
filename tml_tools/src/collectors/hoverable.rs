@@ -61,7 +61,7 @@ fn hover_for_variable(name: &str, scope: &Scope, table: &SymbolTable) -> Option<
     let symbol = table.lookup(name, scope)?;
     let scope_str = match &symbol.scope {
         Scope::Global => "global".to_string(),
-        Scope::Function(fn_name) => format!("fn {}", fn_name),
+        Scope::Function { name: fn_name, .. } => format!("fn {}", fn_name),
         Scope::Block(_) => "".to_string()
     };
     Some(format!(
@@ -102,11 +102,12 @@ pub fn format_type(ty: &SymbolType) -> String {
 pub struct HoverableCollector {
     pub nodes: Vec<HoverableNode>,
     scope_stack: Vec<Scope>,
+    function_counter: u32,
 }
 
 impl HoverableCollector {
     pub fn new() -> Self {
-        HoverableCollector { nodes: vec![], scope_stack: vec![] }
+        HoverableCollector { nodes: vec![], scope_stack: vec![], function_counter: 0 }
     }
 
     pub fn current_scope(&self) -> Scope {
@@ -157,16 +158,15 @@ impl AstVisitor for HoverableCollector {
     }
 
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
-        // Record function definition node
         self.nodes.push(HoverableNode {
             kind: HoverableKind::FunctionDef { name: f.id.value.clone() },
             position: SourcePosition::from_rustemo(&f.id.position),
             scope: Scope::Global,
         });
 
-        let scope = Scope::Function(f.id.value.clone());
+        let fn_id = { self.function_counter += 1; self.function_counter };
+        let scope = Scope::Function { name: f.id.value.clone(), id: fn_id };
 
-        // Record parameter declarations
         for p in opt_iter(&f.parameters_list) {
             self.nodes.push(HoverableNode {
                 kind: HoverableKind::VariableDecl {
@@ -178,7 +178,7 @@ impl AstVisitor for HoverableCollector {
             });
         }
 
-        self.scope_stack.push(Scope::Function(f.id.value.clone()));
+        self.scope_stack.push(scope);
     }
 
     fn leave_function_definition(&mut self, _f: &FunctionDefinition) {

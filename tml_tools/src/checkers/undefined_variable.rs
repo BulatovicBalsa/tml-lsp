@@ -17,7 +17,7 @@ impl std::fmt::Display for CheckError {
             CheckError::UndefinedVariable { name, scope, .. } => match scope {
                 Scope::Block(_) |
                 Scope::Global => write!(f, "Undefined variable '{}'", name),
-                Scope::Function(fn_name) => {
+                Scope::Function { name: fn_name, .. } => {
                     write!(f, "Undefined variable '{}' in function '{}'", name, fn_name)
                 }
             },
@@ -51,11 +51,18 @@ pub struct UndefinedVariableChecker<'a> {
     errors: Vec<CheckError>,
     scope_stack: Vec<Scope>,
     block_counter: u32,
+    function_counter: u32,
 }
 
 impl<'a> UndefinedVariableChecker<'a> {
     pub fn new(table: &'a SymbolTable) -> Self {
-        UndefinedVariableChecker { table, errors: vec![], scope_stack: vec![], block_counter: 0 }
+        UndefinedVariableChecker {
+            table,
+            errors: vec![],
+            scope_stack: vec![],
+            block_counter: 0,
+            function_counter: 0,
+        }
     }
 
     pub fn current_scope(&self) -> Scope {
@@ -122,7 +129,11 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     }
 
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
-        self.scope_stack.push(Scope::Function(f.id.value.clone()));
+        self.function_counter += 1;
+        self.scope_stack.push(Scope::Function {
+            name: f.id.value.clone(),
+            id: self.function_counter,
+        });
     }
 
     fn leave_function_definition(&mut self, _f: &FunctionDefinition) {

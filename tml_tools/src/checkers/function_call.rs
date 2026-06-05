@@ -97,7 +97,7 @@ impl std::fmt::Display for CallError {
             CallError::UndefinedFunction { name, scope, .. } => match scope {
                 Scope::Block(_) |
                 Scope::Global => write!(f, "Undefined function '{}'", name),
-                Scope::Function(fn_name) => {
+                Scope::Function { name: fn_name, .. } => {
                     write!(f, "Undefined function '{}' called from '{}'", name, fn_name)
                 }
             },
@@ -109,7 +109,7 @@ impl std::fmt::Display for CallError {
             }
             CallError::EntryFunctionCall { name, scope, .. } => match scope {
                 Scope::Block(_) |
-                Scope::Function(_) |
+                Scope::Function { .. } |
                 Scope::Global => write!(f, "Entry function '{}' cannot be called from user code", name),
             },
         }
@@ -142,11 +142,12 @@ pub struct FunctionCallChecker<'a> {
     table: &'a SymbolTable,
     errors: Vec<CallError>,
     scope_stack: Vec<Scope>,
+    function_counter: u32,
 }
 
 impl<'a> FunctionCallChecker<'a> {
     pub fn new(table: &'a SymbolTable) -> Self {
-        FunctionCallChecker { table, errors: vec![], scope_stack: vec![] }
+        FunctionCallChecker { table, errors: vec![], scope_stack: vec![], function_counter: 0 }
     }
 
     pub fn current_scope(&self) -> Scope {
@@ -163,7 +164,11 @@ impl<'a> FunctionCallChecker<'a> {
 
 impl<'a> AstVisitor for FunctionCallChecker<'a> {
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
-        self.scope_stack.push(Scope::Function(f.id.value.clone()));
+        self.function_counter += 1;
+        self.scope_stack.push(Scope::Function {
+            name: f.id.value.clone(),
+            id: self.function_counter,
+        });
     }
 
     fn leave_function_definition(&mut self, _f: &FunctionDefinition) {

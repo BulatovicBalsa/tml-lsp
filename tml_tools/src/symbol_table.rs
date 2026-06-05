@@ -24,8 +24,8 @@ pub enum SymbolType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Scope {
     Global,
-    Function(String),
-    Block(u32)
+    Function { name: String, id: u32 },
+    Block(u32),
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +72,7 @@ pub struct SymbolTableBuilder {
     errors: Vec<SymbolError>,
     scope_stack: Vec<Scope>,
     block_counter: u32,
+    function_counter: u32,
 }
 
 impl SymbolTableBuilder {
@@ -81,6 +82,7 @@ impl SymbolTableBuilder {
             errors: vec![],
             scope_stack: vec![],
             block_counter: 0,
+            function_counter: 0,
         }
     }
 
@@ -93,7 +95,15 @@ impl SymbolTableBuilder {
     fn prescan_functions(&mut self, unit: &TranslationUnit) {
         for decl in &unit.ext_decls {
             if let ExternalDeclaration::FunctionDefinition(f) = decl {
-                self.table.functions.push(self.build_function_signature(f));
+                let name = &f.id.value;
+                if self.table.functions.iter().any(|sig| &sig.name == name) {
+                    self.errors.push(SymbolError::new(
+                        name,
+                        &format!("Function '{}' is already defined", name),
+                    ));
+                } else {
+                    self.table.functions.push(self.build_function_signature(f));
+                }
             }
         }
     }
@@ -165,7 +175,11 @@ impl AstVisitor for SymbolTableBuilder {
     }
 
     fn visit_function_definition(&mut self, f: &FunctionDefinition) {
-        self.scope_stack.push(Scope::Function(f.id.value.clone()));
+        self.function_counter += 1;
+        self.scope_stack.push(Scope::Function {
+            name: f.id.value.clone(),
+            id: self.function_counter,
+        });
         for p in opt_iter(&f.parameters_list) {
             self.add_symbol(&p.id.value, convert_type_spec(&p._type));
         }

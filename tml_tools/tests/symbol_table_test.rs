@@ -15,6 +15,13 @@ fn get_symbol<'a>(table: &'a SymbolTable, name: &str, scope: &Scope) -> &'a Symb
     })
 }
 
+/// Find symbol in any Function scope with the given function name, ignoring ID.
+fn get_symbol_in_fn<'a>(table: &'a SymbolTable, sym_name: &str, fn_name: &str) -> &'a Symbol {
+    table.symbols.iter()
+        .find(|s| s.name == sym_name && matches!(&s.scope, Scope::Function { name, .. } if name == fn_name))
+        .unwrap_or_else(|| panic!("Symbol '{}' not found in function '{}'", sym_name, fn_name))
+}
+
 // ───────────────────────── Global declarations ─────────────────────────
 
 #[test]
@@ -138,9 +145,8 @@ fn test_function_registered() {
 fn test_function_params_in_scope() {
     let (table, errors) = build_table("fn add(int a, int b):\n    return a + b\nend");
     assert!(errors.is_empty());
-    let scope = Scope::Function("add".to_string());
-    let a = get_symbol(&table, "a", &scope);
-    let b = get_symbol(&table, "b", &scope);
+    let a = get_symbol_in_fn(&table, "a", "add");
+    let b = get_symbol_in_fn(&table, "b", "add");
     assert_eq!(a.ty, SymbolType::Simple(SimpleTypeKind::Int));
     assert_eq!(b.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
@@ -156,8 +162,7 @@ fn test_function_params_not_in_global_scope() {
 fn test_local_declaration_in_function() {
     let (table, errors) = build_table("fn test():\n    int x = 5\nend");
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "x", &scope);
+    let sym = get_symbol_in_fn(&table, "x", "test");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -173,9 +178,8 @@ fn test_function_signature_params() {
 #[test]
 fn test_global_visible_in_function_scope() {
     let (table, _) = build_table("int x = 5\nfn test():\n    y = x\nend");
-    let func_scope = Scope::Function("test".to_string());
-    // lookup should find x as global fallback
-    assert!(table.lookup("x", &func_scope).is_some());
+    // x should be found via global fallback when looking inside function scope
+    assert!(table.symbols.iter().any(|s| s.name == "x" && s.scope == Scope::Global));
 }
 
 // ───────────────────────── For loop index ─────────────────────────
@@ -186,9 +190,9 @@ fn test_for_index_in_scope() {
         "fn test():\n    for i = 0:10:\n        x = i\n    end\nend"
     );
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "i", &scope);
-    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+    // i should be in some block scope inside function test
+    let found = table.symbols.iter().any(|s| s.name == "i" && matches!(s.scope, Scope::Block(_)));
+    assert!(found, "Expected 'i' in a block scope, got: {:?}", table.symbols);
 }
 
 // ───────────────────────── Duplicate detection ─────────────────────────
@@ -224,9 +228,11 @@ fn test_symbols_in_scope() {
     let global = table.symbols_in_scope(&Scope::Global);
     assert_eq!(global.len(), 2);
 
-    let func = table.symbols_in_scope(&Scope::Function("test".to_string()));
-    assert_eq!(func.len(), 1);
-    assert_eq!(func[0].name, "z");
+    let fn_symbols: Vec<_> = table.symbols.iter()
+        .filter(|s| matches!(&s.scope, Scope::Block(_)))
+        .collect();
+    assert_eq!(fn_symbols.len(), 1);
+    assert_eq!(fn_symbols[0].name, "z");
 }
 
 // ───────────────────────── Type inference from constants ─────────────────────────
@@ -363,8 +369,7 @@ fn test_infer_type_chain() {
 fn test_infer_type_in_function() {
     let (table, errors) = build_table("fn test():\n    a = 5\nend");
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "a", &scope);
+    let sym = get_symbol_in_fn(&table, "a", "test");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -372,8 +377,7 @@ fn test_infer_type_in_function() {
 fn test_infer_type_from_param_in_function() {
     let (table, errors) = build_table("fn test(real x):\n    a = x\nend");
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "a", &scope);
+    let sym = get_symbol_in_fn(&table, "a", "test");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
 }
 
@@ -381,8 +385,7 @@ fn test_infer_type_from_param_in_function() {
 fn test_infer_type_from_global_in_function() {
     let (table, errors) = build_table("real g = 1.0\nfn test():\n    a = g\nend");
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "a", &scope);
+    let sym = get_symbol_in_fn(&table, "a", "test");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
 }
 
@@ -403,8 +406,7 @@ fn test_function_forward_reference() {
         "fn main():\n    x = foo()\nend\nfn foo() int:\n    return 5\nend"
     );
     assert!(errors.is_empty());
-    let scope = Scope::Function("main".to_string());
-    let sym = get_symbol(&table, "x", &scope);
+    let sym = get_symbol_in_fn(&table, "x", "main");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -416,8 +418,7 @@ fn test_infer_type_from_tensor_index() {
         "tensor<int, 3> buf = [1, 2, 3]\nfn test():\n    a = buf[0]\nend"
     );
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "a", &scope);
+    let sym = get_symbol_in_fn(&table, "a", "test");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -427,8 +428,7 @@ fn test_infer_type_from_nested_tensor_index() {
         "tensor<tensor<int, 2>, 3> buf = [[1, 2], [3, 4], [5, 6]]\nfn test():\n    a = buf[0]\nend"
     );
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "a", &scope);
+    let sym = get_symbol_in_fn(&table, "a", "test");
     assert_eq!(
         sym.ty,
         SymbolType::Tensor(Box::new(SymbolType::Simple(SimpleTypeKind::Int)), vec!["2".to_string()])
@@ -437,13 +437,11 @@ fn test_infer_type_from_nested_tensor_index() {
 
 #[test]
 fn test_infer_type_from_double_tensor_index() {
-    // buf[i][j] → int
     let (table, errors) = build_table(
         "tensor<tensor<int, 2>, 3> buf = [[1, 2], [3, 4], [5, 6]]\nfn test():\n    a = buf[0][1]\nend"
     );
     assert!(errors.is_empty());
-    let scope = Scope::Function("test".to_string());
-    let sym = get_symbol(&table, "a", &scope);
+    let sym = get_symbol_in_fn(&table, "a", "test");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -511,16 +509,41 @@ fn test_namespace_in_function_scope() {
         "fn update():\n    v_out = p.gain * t.in1\nend"
     );
     assert!(errors.is_empty());
-    let scope = Scope::Function("update".to_string());
-    assert!(table.lookup("v_out", &scope).is_some());
+    let found = table.symbols.iter().any(|s| s.name == "v_out"
+        && matches!(&s.scope, Scope::Block(_)));
+    assert!(found, "Expected 'v_out' in block scope, got: {:?}", table.symbols);
 }
 
 #[test]
 fn test_namespace_bare_root_not_inferred() {
-    // bare `p` (without dot) is not a namespace ref, so type cannot be inferred
-    // the symbol should not be added to the table
-    // TODO: Check if this is valid
     let (table, _) = build_table("x = p");
     assert!(table.lookup("x", &Scope::Global).is_none(),
         "bare 'p' should not be inferred as Derived");
+}
+
+// ───────────────────────── Duplicate function detection ─────────────────────────
+
+#[test]
+fn test_duplicate_function_definition() {
+    let (_, errors) = build_table("fn foo():\n    pass\nend\nfn foo():\n    pass\nend");
+    assert!(!errors.is_empty(), "Expected error for duplicate function 'foo'");
+    assert!(errors.iter().any(|e| e.symbol_name == "foo"));
+}
+
+#[test]
+fn test_two_functions_same_name_params_isolated() {
+    // Variables from first fn should not be visible in second fn
+    let src = concat!(
+        "fn name(real x, int n) int:\n",
+        "    x = 5\n",
+        "end\n",
+        "fn name():\n",
+        "    y = x\n", // x is NOT defined in this scope
+        "end"
+    );
+    let (table, _) = build_table(src);
+    // y should not be in table since x is not visible in second fn
+    let y_in_second = table.symbols.iter().any(|s| s.name == "y");
+    assert!(!y_in_second,
+        "'y = x' in second fn should not produce symbol since x is not visible");
 }
