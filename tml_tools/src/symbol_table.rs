@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use tml_parser::tml_actions::*;
 use crate::position::SourcePosition;
 use crate::type_inference::infer_type;
@@ -69,11 +71,29 @@ impl SymbolError {
     }
 }
 
+impl Hash for SymbolError {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol_name.hash(state);
+        self.position.as_ref().map(|p| p.line).hash(state);
+        self.position.as_ref().map(|p| p.column).hash(state);
+    }
+}
+
+impl PartialEq for SymbolError {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol_name == other.symbol_name
+            && self.position.as_ref().map(|p| p.line) == other.position.as_ref().map(|p| p.line)
+            && self.position.as_ref().map(|p| p.column) == other.position.as_ref().map(|p| p.column)
+    }
+}
+
+impl Eq for SymbolError {}
+
 // ───────────────────────── Builder ─────────────────────────
 
 pub struct SymbolTableBuilder {
     table: SymbolTable,
-    errors: Vec<SymbolError>,
+    errors: HashSet<SymbolError>,
     scope_stack: Vec<Scope>,
     block_counter: u32,
     function_counter: u32,
@@ -83,7 +103,7 @@ impl SymbolTableBuilder {
     pub fn new() -> Self {
         SymbolTableBuilder {
             table: SymbolTable::default(),
-            errors: vec![],
+            errors: HashSet::new(),
             scope_stack: vec![],
             block_counter: 0,
             function_counter: 0,
@@ -93,7 +113,7 @@ impl SymbolTableBuilder {
     pub fn build(mut self, unit: &TranslationUnit) -> (SymbolTable, Vec<SymbolError>) {
         self.prescan_functions(unit);
         unit.accept(&mut self);
-        (self.table, self.errors)
+        (self.table, self.errors.into_iter().collect())
     }
 
     fn prescan_functions(&mut self, unit: &TranslationUnit) {
@@ -102,14 +122,14 @@ impl SymbolTableBuilder {
                 let name = &f.id.value;
                 if let Some(existing) = self.table.functions.iter().find(|sig| &sig.name == name) {
                     // error for the original function
-                    self.errors.push(SymbolError::new(
+                    self.errors.insert(SymbolError::new(
                         name,
                         &format!("Function '{}' is already defined", name),
                         Some(existing.position.clone())
                     ));
 
                     // error for the duplicate function
-                    self.errors.push(SymbolError::new(
+                    self.errors.insert(SymbolError::new(
                         name,
                         &format!("Function '{}' is already defined", name),
                         Some(SourcePosition::from_rustemo(&f.id.position)),
@@ -161,7 +181,7 @@ impl SymbolTableBuilder {
         let scope = self.current_scope();
         let duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
         if duplicate {
-            self.errors.push(SymbolError::new(
+            self.errors.insert(SymbolError::new(
                 name,
                 &format!("'{}' is already defined in this scope", name),
                 None
