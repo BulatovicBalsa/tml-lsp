@@ -56,7 +56,24 @@ pub async fn goto_definition(
 
     let (target_name, target_scope) = match &node.kind {
         HoverableKind::VariableRef { name }  => (name.clone(), Some(node.scope.clone())),
-        HoverableKind::FunctionCall { name } => (name.clone(), None),
+        HoverableKind::FunctionCall { name } => {
+            let locations: Vec<Location> = nodes.iter()
+                .filter(|n| matches!(&n.kind, HoverableKind::FunctionDef { name: def_name } if def_name == name))
+                .map(|decl| {
+                    let start = Position {
+                        line: decl.position.line as u32,
+                        character: decl.position.column as u32,
+                    };
+                    Location { uri: uri.clone(), range: Range { start, end: start } }
+                })
+                .collect();
+
+            return match locations.len() {
+                0 => Ok(None),
+                1 => Ok(Some(GotoDefinitionResponse::Scalar(locations.into_iter().next().unwrap()))),
+                _ => Ok(Some(GotoDefinitionResponse::Array(locations))),
+            };
+        }
         HoverableKind::VariableDecl { .. } | HoverableKind::FunctionDef { .. } => {
             return Ok(None)
         }
