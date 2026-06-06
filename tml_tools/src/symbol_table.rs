@@ -41,6 +41,7 @@ pub struct FunctionSignature {
     pub name: String,
     pub params: Vec<(SymbolType, String)>,
     pub ret_type: Option<SymbolType>,
+    pub position: SourcePosition
 }
 
 #[derive(Debug, Clone, Default)]
@@ -99,7 +100,15 @@ impl SymbolTableBuilder {
         for decl in &unit.ext_decls {
             if let ExternalDeclaration::FunctionDefinition(f) = decl {
                 let name = &f.id.value;
-                if self.table.functions.iter().any(|sig| &sig.name == name) {
+                if let Some(existing) = self.table.functions.iter().find(|sig| &sig.name == name) {
+                    // error for the original function
+                    self.errors.push(SymbolError::new(
+                        name,
+                        &format!("Function '{}' is already defined", name),
+                        Some(existing.position.clone())
+                    ));
+
+                    // error for the duplicate function
                     self.errors.push(SymbolError::new(
                         name,
                         &format!("Function '{}' is already defined", name),
@@ -117,7 +126,12 @@ impl SymbolTableBuilder {
             .map(|p| (convert_type_spec(&p._type), p.id.value.clone()))
             .collect();
         let ret_type = f.ret_type.as_ref().map(convert_type_spec);
-        FunctionSignature { name: f.id.value.clone(), params, ret_type }
+        FunctionSignature {
+            name: f.id.value.clone(),
+            params,
+            ret_type,
+            position: SourcePosition::from_rustemo(&f.id.position)
+        }
     }
 
     fn current_scope(&self) -> Scope {
