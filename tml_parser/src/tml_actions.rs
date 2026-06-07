@@ -2592,7 +2592,23 @@ impl AssignmentStatement {
         v.visit_assignment(self);
         match self {
             AssignmentStatement::VarAssignmentStatement(s)    => s.rvalue.accept(v),
-            AssignmentStatement::TensorAssignmentStatement(s) => s.rvalue.accept(v),
+            AssignmentStatement::TensorAssignmentStatement(t) => {
+                for index in &t.tensor.indices {
+                    for index_expression in &index.index.index_expression_list {
+                        match index_expression {
+                            IndexExpression::C1(e) => e.expr.accept(v),
+                            IndexExpression::C2(e) => match &e.expr {
+                                RangeExpression::RangeFromTo(r) => {r.start.accept(v); r.stop.accept(v);}
+                                RangeExpression::RangeFrom(r) => r.start.accept(v),
+                                RangeExpression::RangeTo(r) => r.stop.accept(v),
+                                RangeExpression::RangeFromStepTo(r) => {r.start.accept(v); r.stop.accept(v); r.step.accept(v);}
+                                RangeExpression::RangeAll(_) => {}
+                            }
+                        }
+                    }
+                }
+                t.rvalue.accept(v);
+            },
         }
     }
 }

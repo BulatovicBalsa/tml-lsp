@@ -399,3 +399,17 @@ fn test_variable_defined_before_if_visible_inside() {
     ));
     assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
 }
+
+#[test]
+fn test_tensor_index_undefined_variable() {
+    let errors = check("fn test():\n    int x = 5\n    x[b] = 3\nend");
+    assert!(has_undefined(&errors, "b"),
+            "Expected undefined for 'b' in tensor index, got: {:?}", errors);
+}
+
+#[test]
+fn test_tensor_index_defined_variable_ok() {
+    let errors = check("fn test():\n    int x = 5\n    int b = 0\n    x[b] = 3\nend");
+    assert!(!has_undefined(&errors, "b"),
+            "'b' should be visible as tensor index, got: {:?}", errors);
+}
