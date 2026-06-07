@@ -178,6 +178,22 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
             self.check_rvalue(&r._ref);
         }
     }
+
+    fn visit_macro_for(&mut self, _node: &MacroFor) {
+        self.enter_block();
+    }
+
+    fn leave_macro_for(&mut self, _node: &MacroFor) {
+        self.exit_block();
+    }
+
+    fn visit_macro_if(&mut self, _node: &MacroIf) {
+        self.enter_block();
+    }
+
+    fn leave_macro_if(&mut self, _node: &MacroIf) {
+        self.exit_block();
+    }
 }
 
 // ───────────────────────── DiagnosticSource impl ─────────────────────────

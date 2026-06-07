@@ -2757,6 +2757,7 @@ impl MacroFor {
             IteratorExpression::RangeFromStepTo(r) => { r.start.accept(v); r.stop.accept(v); r.step.accept(v); }
         }
         self.body.body.statement_block.accept(v);
+        v.leave_macro_for(self);
     }
 }
 
@@ -2773,6 +2774,7 @@ impl MacroIf {
         if let Some(else_c) = &self.body.else_clause {
             else_c.accept(v);
         }
+        v.leave_macro_if(self);
     }
 }
 

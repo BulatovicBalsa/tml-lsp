@@ -44,4 +44,5 @@ pub trait AstVisitor {
     fn visit_macro_for(&mut self, _node: &MacroFor) {}
     fn leave_macro_for(&mut self, _node: &MacroFor) {}
     fn visit_macro_if(&mut self, _node: &MacroIf) {}
+    fn leave_macro_if(&mut self, _node: &MacroIf) {}
 }
