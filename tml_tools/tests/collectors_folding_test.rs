@@ -285,3 +285,56 @@ fn test_multiple_elseif_fold() {
     assert!(folds.contains(&(5, 6)), "Expected fold for second elseif (5, 6), got {:?}", folds);
     assert!(folds.contains(&(7, 8)), "Expected fold for else (7, 8), got {:?}", folds);
 }
+
+#[test]
+fn test_macro_for_fold() {
+    let src = "macro for i = 0:5:\n    x = i\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold for macro for (0, 1), got {:?}", folds);
+}
+
+#[test]
+fn test_macro_for_empty_body_fold() {
+    let src = "macro for i = 0:5:\n    pass\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold for macro for with pass, got {:?}", folds);
+}
+
+#[test]
+fn test_macro_for_multiline_body_fold() {
+    let src = "macro for i = 0:5:\n    x = i\n    y = i + 1\n    z = i * 2\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 3)), "Expected fold for macro for (0, 3), got {:?}", folds);
+}
+
+#[test]
+fn test_macro_if_fold() {
+    let src = "macro if true:\n    x = 1\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold for macro if (0, 1), got {:?}", folds);
+}
+
+#[test]
+fn test_macro_if_else_fold() {
+    let src = "macro if true:\n    x = 1\nelse:\n    x = 0\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold for macro if (0, 1), got {:?}", folds);
+    assert!(folds.contains(&(2, 3)), "Expected fold for else (2, 3), got {:?}", folds);
+}
+
+#[test]
+fn test_macro_if_elseif_fold() {
+    let src = "macro if true:\n    x = 1\nelseif false:\n    x = 0\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold for macro if (0, 1), got {:?}", folds);
+    assert!(folds.contains(&(2, 3)), "Expected fold for elseif (2, 3), got {:?}", folds);
+}
+
+#[test]
+fn test_macro_if_multiple_elseif_fold() {
+    let src = "macro if true:\n    x = 1\nelseif false:\n    x = 2\nelseif true:\n    x = 3\nend\n";
+    let folds = collect_folds(src);
+    assert!(folds.contains(&(0, 1)), "Expected fold for macro if (0, 1), got {:?}", folds);
+    assert!(folds.contains(&(2, 3)), "Expected fold for first elseif (2, 3), got {:?}", folds);
+    assert!(folds.contains(&(4, 5)), "Expected fold for second elseif (4, 5), got {:?}", folds);
+}

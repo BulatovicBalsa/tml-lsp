@@ -1,5 +1,6 @@
 use crate::visitor::AstVisitor;
 use tml_parser::tml_actions::*;
+use crate::position::SourcePosition;
 
 macro_rules! start_line {
     ($e:expr) => {
@@ -62,6 +63,45 @@ impl<'a> FoldingCollector<'a> {
             });
         }
     }
+
+    fn add_selection_folds(
+        &mut self,
+        start_line: u32,
+        elseif_clause: &ElseIfClause0,
+        else_clause: &ElseClauseOpt,
+        end_t: &EndT,
+    ) {
+        let mut if_end_line = 0;
+        if let Some(elseifs) = elseif_clause {
+            for index in 0..elseifs.len() {
+                let clause = &elseifs[index];
+                if index == 0 {
+                    if_end_line = start_line!(clause);
+                }
+                if index == elseifs.len() - 1 {
+                    if let Some(else_c) = else_clause {
+                        self.try_add_range_end_line(start_line!(clause), start_line!(else_c) - 1);
+                    } else {
+                        self.try_add_range(start_line!(clause), &end_t.position);
+                    }
+                } else {
+                    let next_clause = &elseifs[index + 1];
+                    self.try_add_range_end_line(start_line!(clause), start_line!(next_clause) - 1);
+                }
+            }
+        }
+        if let Some(else_c) = else_clause {
+            if if_end_line == 0 {
+                if_end_line = start_line!(else_c);
+            }
+            self.try_add_range(start_line!(else_c), &end_t.position);
+        }
+        if if_end_line == 0 {
+            self.try_add_range(start_line, &end_t.position);
+        } else {
+            self.try_add_range_end_line(start_line, if_end_line - 1);
+        }
+    }
 }
 
 // ───────────────────────── AstVisitor impl ─────────────────────────
@@ -72,37 +112,12 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
     }
 
     fn visit_selection(&mut self, s: &SelectionStatement) {
-        let mut if_end_line = 0;
-        if let Some(elseifs) = &s.elseif_clause {
-            for index in 0..elseifs.len() {
-                let clause = &elseifs[index];
-                if index == 0 {
-                    if_end_line = start_line!(clause);
-                }
-                if index == &elseifs.len() - 1 {
-                    if let Some(else_c) = &s.else_clause {
-                        self.try_add_range_end_line(start_line!(clause), start_line!(else_c) - 1);
-                    } else {
-                        self.try_add_range(start_line!(clause), &s.end_t.position);
-                    }
-                } else {
-                    let next_clause = &elseifs[index + 1];
-                    self.try_add_range_end_line(start_line!(clause), start_line!(next_clause) - 1);
-                }
-            }
-        }
-        if let Some(else_c) = &s.else_clause {
-            if if_end_line == 0 {
-                if_end_line = start_line!(else_c);
-            }
-            self.try_add_range(start_line!(else_c), &s.end_t.position);
-        }
-
-        if if_end_line == 0 {
-            self.try_add_range(start_line!(s), &s.end_t.position);
-        } else {
-            self.try_add_range_end_line(start_line!(s), if_end_line - 1);
-        }
+        self.add_selection_folds(
+            start_line!(s),
+            &s.elseif_clause,
+            &s.else_clause,
+            &s.end_t,
+        );
     }
 
     fn visit_for(&mut self, f: &ForIterationStatement) {
@@ -127,5 +142,20 @@ impl<'a> AstVisitor for FoldingCollector<'a> {
 
     fn visit_not_feedthrough(&mut self, e: &NotFeedthroughStatement) {
         self.try_add_range(start_line!(e), &e.end_t.position);
+    }
+
+    fn visit_macro_for(&mut self, m: &MacroFor) {
+        let start_line = SourcePosition::from_rustemo(&m.macro_t.position).line;
+        self.try_add_range(start_line as u32, &m.body.end_t.position);
+    }
+
+    fn visit_macro_if(&mut self, m: &MacroIf) {
+        let macro_start = SourcePosition::from_rustemo(&m.macro_t.position).line as u32;
+        self.add_selection_folds(
+            macro_start,
+            &m.body.elseif_clause,
+            &m.body.else_clause,
+            &m.body.end_t,
+        );
     }
 }
