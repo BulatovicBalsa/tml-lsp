@@ -261,6 +261,14 @@ impl AstVisitor for SymbolTableBuilder {
     fn leave_macro_for(&mut self, _m: &MacroFor) {
         self.exit_block();
     }
+
+    fn visit_macro_if(&mut self, _node: &MacroIf) {
+        self.enter_block();
+    }
+
+    fn leave_macro_if(&mut self, _node: &MacroIf) {
+        self.exit_block();
+    }
 }
 
 // ───────────────────────── Conversions ─────────────────────────

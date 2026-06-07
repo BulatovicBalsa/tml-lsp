@@ -1,4 +1,4 @@
-use crate::constants::is_reserved_namespace;
+use crate::constants::{is_predefined_literal, is_reserved_namespace};
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
 use crate::symbol_table::{dot_access_to_string, Scope, SymbolTable};
@@ -91,6 +91,9 @@ impl<'a> UndefinedVariableChecker<'a> {
         let root = first_id.value.as_str();
 
         if is_reserved_namespace(root) && dot.names.len() > 1 {
+            return;
+        }
+        if is_predefined_literal(root) && dot.names.len() == 1 {
             return;
         }
         if self.table.lookup_in_stack(root, &self.scope_stack).is_none() {

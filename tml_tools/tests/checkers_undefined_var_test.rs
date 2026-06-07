@@ -413,3 +413,9 @@ fn test_tensor_index_defined_variable_ok() {
     assert!(!has_undefined(&errors, "b"),
             "'b' should be visible as tensor index, got: {:?}", errors);
 }
+
+#[test]
+fn test_predefined_variable_in_expression() {
+    let errors = check("result = M_PI * 2");
+    assert!(errors.is_empty(), "Predefined literal 'M_PI' should not be undefined, got: {:?}", errors);
+}
