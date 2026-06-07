@@ -330,6 +330,34 @@ fn test_for_index_not_visible_after_loop() {
         "Expected undefined for 'i' used outside for block, got: {:?}", errors);
 }
 
+// ───────────────────────── Macro for ─────────────────────────
+
+#[test]
+fn test_macro_for_index_visible_inside() {
+    // macro for index should be visible inside the loop body
+    let errors = check("macro for i = 0:5:\n    x = i\nend");
+    assert!(!has_undefined(&errors, "i"),
+        "'i' should be visible inside macro for body, got: {:?}", errors);
+}
+
+#[test]
+fn test_macro_for_index_not_visible_after() {
+    // macro for index should not be visible after the loop
+    let errors = check("fn test():\n    macro for i = 0:5:\n        pass\n    end\n    y = i\nend");
+    assert!(has_undefined(&errors, "i"),
+        "Expected undefined for 'i' used outside macro for block, got: {:?}", errors);
+}
+
+#[test]
+fn test_macro_for_namespace_address_is_valid() {
+    // n.x_rows in address expression should not trigger undefined error
+    let errors = check("macro for i = 0:n.x_rows:\n    x = i\nend");
+    assert!(!has_undefined(&errors, "i"),
+        "'i' should be visible inside macro for, got: {:?}", errors);
+    assert!(!has_undefined(&errors, "n"),
+        "namespace 'n' should be valid, got: {:?}", errors);
+}
+
 #[test]
 fn test_variable_defined_in_while_not_visible_after() {
     let errors = check("fn test():\n    int x = 1\n    while x > 0:\n        int y = x\n        x = x - 1\n    end\n    z = y\nend");

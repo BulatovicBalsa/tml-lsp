@@ -252,6 +252,15 @@ impl AstVisitor for SymbolTableBuilder {
     fn leave_for(&mut self, _node: &ForIterationStatement) {
         self.exit_block();
     }
+
+    fn visit_macro_for(&mut self, m: &MacroFor) {
+        self.enter_block();
+        self.add_symbol(&m.body.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
+    }
+
+    fn leave_macro_for(&mut self, _m: &MacroFor) {
+        self.exit_block();
+    }
 }
 
 // ───────────────────────── Conversions ─────────────────────────
