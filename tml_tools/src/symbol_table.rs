@@ -163,46 +163,48 @@ impl SymbolTableBuilder {
 
     fn handle_declaration(&mut self, d: &DeclarationStatement) {
         let name = dot_access_to_string(&d.id);
+        let position = dot_access_position(&d.id);
         let ty = convert_type_spec(&d._type);
-        self.add_symbol(&name, ty);
+        self.add_symbol(&name, ty, Some(position)); // TODO: position
     }
 
     fn handle_assignment(&mut self, stmt: &AssignmentStatement) {
         if let AssignmentStatement::VarAssignmentStatement(v) = stmt {
             let name = dot_access_to_string(&v.var);
+            let position = dot_access_position(&v.var);
             if self.table.lookup_in_stack(&name, &self.scope_stack).is_none() {
                 if let Some(ty) = infer_type(&v.rvalue, &self.table, &self.scope_stack) {
-                    self.add_symbol(&name, ty);
+                    self.add_symbol(&name, ty, Some(position)); // TODO: position
                 }
             }
         }
     }
 
-    fn add_symbol(&mut self, name: &str, ty: SymbolType) {
+    fn add_symbol(&mut self, name: &str, ty: SymbolType, position: Option<SourcePosition>) {
         let scope = self.current_scope();
         let is_duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
         let is_namespace = is_reserved_namespace(name);
         let is_predefined_literal = is_predefined_literal(name);
-        
+
         if is_duplicate {
             self.errors.insert(SymbolError::new(
                 name,
                 &format!("'{}' is already defined in this scope", name),
-                None
+                position.clone()
             ));
         }
         if is_namespace {
             self.errors.insert(SymbolError::new(
                 name,
                 &format!("'{}' is a reserved namespace and cannot be redefined", name),
-                None
+                position.clone()
             ));
         }
         if is_predefined_literal {
             self.errors.insert(SymbolError::new(
                 name,
                 &format!("'{}' is a predefined literal and cannot be redefined", name),
-                None
+                position.clone()
             ));
         }
         if !is_duplicate && !is_namespace && !is_predefined_literal {
@@ -242,7 +244,7 @@ impl AstVisitor for SymbolTableBuilder {
             id: self.function_counter,
         });
         for p in opt_iter(&f.parameters_list) {
-            self.add_symbol(&p.id.value, convert_type_spec(&p._type));
+            self.add_symbol(&p.id.value, convert_type_spec(&p._type), Some(SourcePosition::from_rustemo(&p.id.position))); // TODO: position
         }
     }
 
@@ -269,7 +271,7 @@ impl AstVisitor for SymbolTableBuilder {
     fn visit_for(&mut self, f: &ForIterationStatement) {
         // Index variable is added to the block scope opened by visit_statement_block
         self.enter_block();
-        self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
+        self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int), Some(SourcePosition::from_rustemo(&f.header.idx.position))); // TODO: position
     }
 
     fn leave_for(&mut self, _node: &ForIterationStatement) {
@@ -278,7 +280,7 @@ impl AstVisitor for SymbolTableBuilder {
 
     fn visit_macro_for(&mut self, m: &MacroFor) {
         self.enter_block();
-        self.add_symbol(&m.body.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int));
+        self.add_symbol(&m.body.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int), Some(SourcePosition::from_rustemo(&m.body.header.idx.position))); // TODO: position
     }
 
     fn leave_macro_for(&mut self, _m: &MacroFor) {
@@ -329,6 +331,10 @@ pub fn dot_access_to_string(d: &DotAccessExpression) -> String {
     let base = d.names.iter().map(|id| id.value.clone()).collect::<Vec<_>>().join(".");
     let optional = if d.optional.is_some() { "?" } else { "" };
     format!("{}{}", base, optional)
+}
+
+pub fn dot_access_position(d: &DotAccessExpression) -> SourcePosition {
+    SourcePosition::from_rustemo(&d.names.first().unwrap().position)
 }
 
 fn expr_to_string(e: &Expression) -> String {
