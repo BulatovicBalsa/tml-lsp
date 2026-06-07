@@ -208,14 +208,16 @@ impl AstVisitor for HoverableCollector {
                     self.push_variable_ref(first_id, &scope);
                 }
             }
-            PostfixExpression::FunctionCall(f) => {
-                self.nodes.push(HoverableNode {
-                    kind: HoverableKind::FunctionCall { name: f.id.value.clone() },
-                    position: SourcePosition::from_rustemo(&f.id.position),
-                    scope: scope.clone(),
-                });
-            }
             _ => {}
         }
+    }
+
+    fn visit_function_call(&mut self, f: &FunctionCall) {
+        let scope = self.current_scope();
+        self.nodes.push(HoverableNode {
+            kind: HoverableKind::FunctionCall {name: f.id.value.clone()},
+            position: SourcePosition::from_rustemo(&f.id.position),
+            scope
+        })
     }
 }
