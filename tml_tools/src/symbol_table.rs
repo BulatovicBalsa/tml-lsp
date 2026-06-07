@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use tml_parser::tml_actions::*;
+use crate::constants::{is_predefined_literal, is_reserved_namespace};
 use crate::position::SourcePosition;
 use crate::type_inference::infer_type;
 use crate::visitor::{AstVisitor, opt_iter};
@@ -179,15 +180,37 @@ impl SymbolTableBuilder {
 
     fn add_symbol(&mut self, name: &str, ty: SymbolType) {
         let scope = self.current_scope();
-        let duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
-        if duplicate {
+        let is_duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
+        let is_namespace = is_reserved_namespace(name);
+        let is_predefined_literal = is_predefined_literal(name);
+        
+        if is_duplicate {
             self.errors.insert(SymbolError::new(
                 name,
                 &format!("'{}' is already defined in this scope", name),
                 None
             ));
-        } else {
-            self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
+        }
+        if is_namespace {
+            self.errors.insert(SymbolError::new(
+                name,
+                &format!("'{}' is a reserved namespace and cannot be redefined", name),
+                None
+            ));
+        }
+        if is_predefined_literal {
+            self.errors.insert(SymbolError::new(
+                name,
+                &format!("'{}' is a predefined literal and cannot be redefined", name),
+                None
+            ));
+        }
+        if !is_duplicate && !is_namespace && !is_predefined_literal {
+            self.table.symbols.push(Symbol {
+                name: name.to_string(),
+                ty,
+                scope,
+            });
         }
     }
 

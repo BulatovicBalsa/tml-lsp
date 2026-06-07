@@ -564,3 +564,62 @@ fn test_two_functions_same_name_params_isolated() {
     assert!(!y_in_second,
         "'y = x' in second fn should not produce symbol since x is not visible");
 }
+
+// ───────────────────────── Reserved namespace detection ─────────────────────────
+
+#[test]
+fn test_reserved_namespace_as_for_index() {
+    let (_table, errors) = build_table(
+        "fn test():\n    for t = 0:10:\n        x = t\n    end\nend"
+    );
+    assert!(!errors.is_empty(), "Expected error for using reserved namespace 't' as for loop index");
+    assert!(errors.iter().any(|e| e.symbol_name == "t"));
+}
+
+#[test]
+fn test_reserved_namespace_as_macro_for_index() {
+    let (_table, errors) = build_table(
+        "macro for t = 0:10:\n    x = t\nend"
+    );
+    assert!(!errors.is_empty(), "Expected error for using reserved namespace 't' as macro for loop index");
+    assert!(errors.iter().any(|e| e.symbol_name == "t"));
+}
+
+// ───────────────────────── Predefined literal detection ─────────────────────────
+
+#[test]
+fn test_predefined_literal_as_variable() {
+    let (_table, errors) = build_table("M_PI = 3.14");
+    assert!(!errors.is_empty(), "Expected error for redeclaring predefined literal 'M_PI'");
+    assert!(errors.iter().any(|e| e.symbol_name == "M_PI"));
+}
+
+#[test]
+fn test_predefined_literal_used_as_index() {
+    let (table, errors) = build_table(
+        "tensor<int, 3> buf = [1, 2, 3]\nfn test():\n    x = buf[M_PI]\nend"
+    );
+    assert!(errors.is_empty(), "Using predefined literal 'M_PI' as tensor index should not produce an error");
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "x" && matches!(s.scope, Scope::Block(_)))
+        .expect("Expected 'x' in block scope");
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
+}
+
+#[test]
+fn test_predefined_literal_used_as_for_loop_index() {
+    let (_table, errors) = build_table(
+        "fn test():\n    for M_PI = 0:10:\n        x = M_PI\n    end\nend"
+    );
+    assert!(!errors.is_empty(), "Expected error for using predefined literal 'M_PI' as for loop index");
+    assert!(errors.iter().any(|e| e.symbol_name == "M_PI"));
+}
+
+#[test]
+fn test_predefined_literal_used_as_macro_for_loop_index() {
+    let (_table, errors) = build_table(
+        "macro for M_PI = 0:10:\n    x = M_PI\nend"
+    );
+    assert!(!errors.is_empty(), "Expected error for using predefined literal 'M_PI' as macro for loop index");
+    assert!(errors.iter().any(|e| e.symbol_name == "M_PI"));
+}
