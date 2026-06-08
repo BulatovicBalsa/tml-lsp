@@ -419,3 +419,36 @@ fn test_predefined_variable_in_expression() {
     let errors = check("result = M_PI * 2");
     assert!(errors.is_empty(), "Predefined literal 'M_PI' should not be undefined, got: {:?}", errors);
 }
+
+// ───────────────────────── Macro if scope ─────────────────────────
+
+#[test]
+fn test_macro_if_variable_visible_after() {
+    // macro if is compile-time — x defined inside is visible outside
+    let errors = check("macro if true:\n    x = 5\nend\ny = x");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' defined inside macro if should be visible after, got: {:?}", errors);
+}
+
+#[test]
+fn test_macro_if_variable_visible_in_body() {
+    let errors = check("macro if true:\n    x = 5\n    y = x\nend");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' should be visible within macro if body, got: {:?}", errors);
+}
+
+#[test]
+fn test_macro_if_else_variable_visible_after() {
+    // variable defined in either branch is visible after
+    let errors = check("macro if true:\n    x = 5\nelse:\n    x = 0\nend\ny = x");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' defined in macro if/else should be visible after, got: {:?}", errors);
+}
+
+#[test]
+fn test_macro_for_variable_visible_after() {
+    // macro for is compile-time — x defined inside is visible outside
+    let errors = check("macro for i = 0:3:\n    x = i\nend\ny = x");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' defined inside macro for should be visible after, got: {:?}", errors);
+}

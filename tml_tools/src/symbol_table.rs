@@ -29,7 +29,13 @@ pub enum SymbolType {
 pub enum Scope {
     Global,
     Function { name: String, id: u32 },
-    Block(u32),
+    /// Block scope identified by the position of its opening keyword.
+    Block { line: u32, col: u32 },
+    /// Compile-time macro body — variables go into parent scope.
+    TransparentBlock,
+    /// Block scope for macro for index variable — skipped in current_scope() so
+    /// variables defined in the macro body go into the parent scope.
+    MacroIndexBlock { line: u32, col: u32 },
 }
 
 #[derive(Debug, Clone)]
@@ -96,8 +102,9 @@ pub struct SymbolTableBuilder {
     table: SymbolTable,
     errors: HashSet<SymbolError>,
     scope_stack: Vec<Scope>,
-    block_counter: u32,
     function_counter: u32,
+    /// Keyword positions waiting to be consumed by visit_statement_block.
+    pending_block_pos: Vec<(u32, u32)>,
 }
 
 impl SymbolTableBuilder {
@@ -106,8 +113,8 @@ impl SymbolTableBuilder {
             table: SymbolTable::default(),
             errors: HashSet::new(),
             scope_stack: vec![],
-            block_counter: 0,
             function_counter: 0,
+            pending_block_pos: vec![],
         }
     }
 
@@ -156,7 +163,18 @@ impl SymbolTableBuilder {
     }
 
     fn current_scope(&self) -> Scope {
-        self.scope_stack.last().cloned().unwrap_or(Scope::Global)
+        self.scope_stack.iter().rev()
+            .find(|s| !matches!(s, Scope::TransparentBlock | Scope::MacroIndexBlock { .. }))
+            .cloned()
+            .unwrap_or(Scope::Global)
+    }
+
+    fn enter_block(&mut self, line: u32, col: u32) {
+        self.scope_stack.push(Scope::Block { line, col });
+    }
+
+    fn exit_block(&mut self) {
+        self.scope_stack.pop();
     }
 
     // ── Symbol helpers ──
@@ -165,7 +183,7 @@ impl SymbolTableBuilder {
         let name = dot_access_to_string(&d.id);
         let position = dot_access_position(&d.id);
         let ty = convert_type_spec(&d._type);
-        self.add_symbol(&name, ty, Some(position)); // TODO: position
+        self.add_symbol(&name, ty, Some(position));
     }
 
     fn handle_assignment(&mut self, stmt: &AssignmentStatement) {
@@ -174,9 +192,28 @@ impl SymbolTableBuilder {
             let position = dot_access_position(&v.var);
             if self.table.lookup_in_stack(&name, &self.scope_stack).is_none() {
                 if let Some(ty) = infer_type(&v.rvalue, &self.table, &self.scope_stack) {
-                    self.add_symbol(&name, ty, Some(position)); // TODO: position
+                    self.add_symbol(&name, ty, Some(position));
                 }
             }
+        }
+    }
+
+    fn add_symbol_in_scope(&mut self, name: &str, ty: SymbolType, position: Option<SourcePosition>, scope: Scope) {
+        let is_duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
+        let is_namespace = is_reserved_namespace(name);
+        let is_predefined_literal = is_predefined_literal(name);
+
+        if is_duplicate {
+            self.errors.insert(SymbolError::new(name, &format!("'{}' is already defined in this scope", name), position.clone()));
+        }
+        if is_namespace {
+            self.errors.insert(SymbolError::new(name, &format!("'{}' is a reserved namespace and cannot be redefined", name), position.clone()));
+        }
+        if is_predefined_literal {
+            self.errors.insert(SymbolError::new(name, &format!("'{}' is a predefined literal and cannot be redefined", name), position.clone()));
+        }
+        if !is_duplicate && !is_namespace && !is_predefined_literal {
+            self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
         }
     }
 
@@ -216,14 +253,6 @@ impl SymbolTableBuilder {
         }
     }
 
-    fn enter_block(&mut self) {
-        self.block_counter += 1;
-        self.scope_stack.push(Scope::Block(self.block_counter))
-    }
-
-    fn exit_block(&mut self) {
-        self.scope_stack.pop();
-    }
 }
 
 // ───────────────────────── AstVisitor impl ─────────────────────────
@@ -244,7 +273,7 @@ impl AstVisitor for SymbolTableBuilder {
             id: self.function_counter,
         });
         for p in opt_iter(&f.parameters_list) {
-            self.add_symbol(&p.id.value, convert_type_spec(&p._type), Some(SourcePosition::from_rustemo(&p.id.position))); // TODO: position
+            self.add_symbol(&p.id.value, convert_type_spec(&p._type), Some(SourcePosition::from_rustemo(&p.id.position)));
         }
     }
 
@@ -253,11 +282,11 @@ impl AstVisitor for SymbolTableBuilder {
     }
 
     fn visit_statement_block(&mut self, _b: &StatementBlock) {
-        self.enter_block();
-    }
-
-    fn leave_statement_block(&mut self, _b: &StatementBlock) {
-        self.exit_block();
+        if let Some((line, col)) = self.pending_block_pos.pop() {
+            self.enter_block(line, col);
+        }
+        // If no pending pos (e.g. function body), do nothing —
+        // function body vars go into Function scope directly.
     }
 
     fn visit_statement(&mut self, stmt: &Statement) {
@@ -268,31 +297,114 @@ impl AstVisitor for SymbolTableBuilder {
         }
     }
 
-    fn visit_for(&mut self, f: &ForIterationStatement) {
-        // Index variable is added to the block scope opened by visit_statement_block
-        self.enter_block();
-        self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int), Some(SourcePosition::from_rustemo(&f.header.idx.position))); // TODO: position
+    fn visit_selection(&mut self, s: &SelectionStatement) {
+        let pos = SourcePosition::from_rustemo(&s.if_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
     }
 
-    fn leave_for(&mut self, _node: &ForIterationStatement) {
+    fn leave_selection(&mut self, _s: &SelectionStatement) {
+        self.exit_block();
+    }
+
+    fn visit_else_if_clause(&mut self, c: &ElseIfClause) {
+        // Close previous if/elseif block, open new one for this elseif
+        self.exit_block();
+        let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn visit_else_clause(&mut self, c: &ElseClause) {
+        // Close previous if/elseif block, open new one for else
+        self.exit_block();
+        let pos = SourcePosition::from_rustemo(&c.else_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn visit_for(&mut self, f: &ForIterationStatement) {
+        let fot_t_pos = SourcePosition::from_rustemo(&f.for_t.position);
+        let index_pos = SourcePosition::from_rustemo(&f.header.idx.position);
+        
+        self.enter_block(fot_t_pos.line as u32, fot_t_pos.column as u32);
+        self.add_symbol(&f.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int), Some(index_pos.clone()));
+        self.pending_block_pos.push((index_pos.line as u32, index_pos.column as u32));
+    }
+
+    fn leave_for(&mut self, _f: &ForIterationStatement) {
+        self.exit_block(); // body block
+        self.exit_block(); // for index block
+    }
+
+    fn visit_while(&mut self, w: &WhileIterationStatement) {
+        let pos = SourcePosition::from_rustemo(&w.while_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_while(&mut self, _w: &WhileIterationStatement) {
+        self.exit_block();
+    }
+
+    fn visit_exists(&mut self, e: &ExistsStatement) {
+        let pos = SourcePosition::from_rustemo(&e.exists_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_exists(&mut self, _e: &ExistsStatement) {
+        self.exit_block();
+    }
+
+    fn visit_not_exists(&mut self, e: &NotExistsStatement) {
+        let pos = SourcePosition::from_rustemo(&e.not_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_not_exists(&mut self, _e: &NotExistsStatement) {
+        self.exit_block();
+    }
+
+    fn visit_feedthrough(&mut self, e: &FeedthroughStatement) {
+        let pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_feedthrough(&mut self, _e: &FeedthroughStatement) {
+        self.exit_block();
+    }
+
+    fn visit_not_feedthrough(&mut self, e: &NotFeedthroughStatement) {
+        let pos = SourcePosition::from_rustemo(&e.not_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_not_feedthrough(&mut self, _e: &NotFeedthroughStatement) {
         self.exit_block();
     }
 
     fn visit_macro_for(&mut self, m: &MacroFor) {
-        self.enter_block();
-        self.add_symbol(&m.body.header.idx.value, SymbolType::Simple(SimpleTypeKind::Int), Some(SourcePosition::from_rustemo(&m.body.header.idx.position))); // TODO: position
+        self.scope_stack.push(Scope::TransparentBlock);
+        let pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        let index_scope = Scope::MacroIndexBlock { line: pos.line as u32, col: pos.column as u32 };
+        // Add index variable into MacroIndexBlock scope (with namespace/predef checks)
+        let idx_pos = SourcePosition::from_rustemo(&m.body.header.idx.position);
+        self.add_symbol_in_scope(
+            &m.body.header.idx.value,
+            SymbolType::Simple(SimpleTypeKind::Int),
+            Some(idx_pos),
+            index_scope.clone(),
+        );
+        self.scope_stack.push(index_scope);
     }
 
     fn leave_macro_for(&mut self, _m: &MacroFor) {
-        self.exit_block();
+        self.scope_stack.pop(); // pop MacroIndexBlock
+        self.scope_stack.pop(); // pop TransparentBlock
     }
 
     fn visit_macro_if(&mut self, _node: &MacroIf) {
-        self.enter_block();
+        self.scope_stack.push(Scope::TransparentBlock);
     }
 
     fn leave_macro_if(&mut self, _node: &MacroIf) {
-        self.exit_block();
+        self.scope_stack.pop();
     }
 }
 

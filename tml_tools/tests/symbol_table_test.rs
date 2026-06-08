@@ -22,6 +22,11 @@ fn get_symbol_in_fn<'a>(table: &'a SymbolTable, sym_name: &str, fn_name: &str) -
         .unwrap_or_else(|| panic!("Symbol '{}' not found in function '{}'", sym_name, fn_name))
 }
 
+/// Returns true if the scope is a local scope (not global or transparent).
+fn in_local_scope(scope: &Scope) -> bool {
+    !matches!(scope, Scope::Global | Scope::TransparentBlock | Scope::MacroIndexBlock { .. })
+}
+
 // ───────────────────────── Global declarations ─────────────────────────
 
 #[test]
@@ -163,8 +168,8 @@ fn test_local_declaration_in_function() {
     let (table, errors) = build_table("fn test():\n    int x = 5\nend");
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "x" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'x' in block scope");
+        .find(|s| s.name == "x" && in_local_scope(&s.scope))
+        .expect("Expected 'x' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -193,7 +198,7 @@ fn test_for_index_in_scope() {
     );
     assert!(errors.is_empty());
     // i should be in some block scope inside function test
-    let found = table.symbols.iter().any(|s| s.name == "i" && matches!(s.scope, Scope::Block(_)));
+    let found = table.symbols.iter().any(|s| s.name == "i" && in_local_scope(&s.scope));
     assert!(found, "Expected 'i' in a block scope, got: {:?}", table.symbols);
 }
 
@@ -231,7 +236,7 @@ fn test_symbols_in_scope() {
     assert_eq!(global.len(), 2);
 
     let fn_symbols: Vec<_> = table.symbols.iter()
-        .filter(|s| matches!(&s.scope, Scope::Block(_)))
+        .filter(|s| in_local_scope(&s.scope))
         .collect();
     assert_eq!(fn_symbols.len(), 1);
     assert_eq!(fn_symbols[0].name, "z");
@@ -372,8 +377,8 @@ fn test_infer_type_in_function() {
     let (table, errors) = build_table("fn test():\n    a = 5\nend");
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'a' in block scope");
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -382,8 +387,8 @@ fn test_infer_type_from_param_in_function() {
     let (table, errors) = build_table("fn test(real x):\n    a = x\nend");
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'a' in block scope");
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
 }
 
@@ -392,8 +397,8 @@ fn test_infer_type_from_global_in_function() {
     let (table, errors) = build_table("real g = 1.0\nfn test():\n    a = g\nend");
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'a' in block scope");
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real));
 }
 
@@ -416,8 +421,8 @@ fn test_function_forward_reference() {
     assert!(errors.is_empty());
     // x is in a block scope inside main
     let sym = table.symbols.iter()
-        .find(|s| s.name == "x" && matches!(s.scope, Scope::Block(_)))
-        .unwrap_or_else(|| panic!("Symbol 'x' not found in any block scope, symbols: {:?}", table.symbols));
+        .find(|s| s.name == "x" && in_local_scope(&s.scope))
+        .unwrap_or_else(|| panic!("Symbol 'x' not found in local scope, symbols: {:?}", table.symbols));
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -430,8 +435,8 @@ fn test_infer_type_from_tensor_index() {
     );
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'a' in block scope");
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -442,8 +447,8 @@ fn test_infer_type_from_nested_tensor_index() {
     );
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'a' in block scope");
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
     assert_eq!(
         sym.ty,
         SymbolType::Tensor(Box::new(SymbolType::Simple(SimpleTypeKind::Int)), vec!["2".to_string()])
@@ -457,8 +462,8 @@ fn test_infer_type_from_double_tensor_index() {
     );
     assert!(errors.is_empty());
     let sym = table.symbols.iter()
-        .find(|s| s.name == "a" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'a' in block scope");
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 
@@ -526,8 +531,7 @@ fn test_namespace_in_function_scope() {
         "fn update():\n    v_out = p.gain * t.in1\nend"
     );
     assert!(errors.is_empty());
-    let found = table.symbols.iter().any(|s| s.name == "v_out"
-        && matches!(&s.scope, Scope::Block(_)));
+    let found = table.symbols.iter().any(|s| s.name == "v_out" && in_local_scope(&s.scope));
     assert!(found, "Expected 'v_out' in block scope, got: {:?}", table.symbols);
 }
 
@@ -601,8 +605,8 @@ fn test_predefined_literal_used_as_index() {
     );
     assert!(errors.is_empty(), "Using predefined literal 'M_PI' as tensor index should not produce an error");
     let sym = table.symbols.iter()
-        .find(|s| s.name == "x" && matches!(s.scope, Scope::Block(_)))
-        .expect("Expected 'x' in block scope");
+        .find(|s| s.name == "x" && in_local_scope(&s.scope))
+        .expect("Expected 'x' in local scope");
     assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int));
 }
 

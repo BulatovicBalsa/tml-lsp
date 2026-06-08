@@ -15,7 +15,9 @@ impl std::fmt::Display for CheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CheckError::UndefinedVariable { name, scope, .. } => match scope {
-                Scope::Block(_) |
+                Scope::Block { .. } |
+                Scope::MacroIndexBlock { .. } |
+                Scope::TransparentBlock |
                 Scope::Global => write!(f, "Undefined variable '{}'", name),
                 Scope::Function { name: fn_name, .. } => {
                     write!(f, "Undefined variable '{}' in function '{}'", name, fn_name)
@@ -50,8 +52,8 @@ pub struct UndefinedVariableChecker<'a> {
     table: &'a SymbolTable,
     errors: Vec<CheckError>,
     scope_stack: Vec<Scope>,
-    block_counter: u32,
     function_counter: u32,
+    pending_block_pos: Vec<(u32, u32)>,
 }
 
 impl<'a> UndefinedVariableChecker<'a> {
@@ -60,13 +62,16 @@ impl<'a> UndefinedVariableChecker<'a> {
             table,
             errors: vec![],
             scope_stack: vec![],
-            block_counter: 0,
             function_counter: 0,
+            pending_block_pos: vec![],
         }
     }
 
     pub fn current_scope(&self) -> Scope {
-        self.scope_stack.last().cloned().unwrap_or(Scope::Global)
+        self.scope_stack.iter().rev()
+            .find(|s| !matches!(s, Scope::TransparentBlock | Scope::MacroIndexBlock { .. }))
+            .cloned()
+            .unwrap_or(Scope::Global)
     }
 
     pub fn check(mut self, unit: &TranslationUnit) -> Vec<CheckError> {
@@ -74,9 +79,8 @@ impl<'a> UndefinedVariableChecker<'a> {
         self.errors
     }
 
-    fn enter_block(&mut self) {
-        self.block_counter += 1;
-        self.scope_stack.push(Scope::Block(self.block_counter));
+    fn enter_block(&mut self, line: u32, col: u32) {
+        self.scope_stack.push(Scope::Block { line, col });
     }
 
     fn exit_block(&mut self) {
@@ -144,11 +148,9 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     }
 
     fn visit_statement_block(&mut self, _b: &StatementBlock) {
-        self.enter_block();
-    }
-
-    fn leave_statement_block(&mut self, _b: &StatementBlock) {
-        self.exit_block();
+        if let Some((line, col)) = self.pending_block_pos.pop() {
+            self.enter_block(line, col);
+        }
     }
 
     fn visit_statement(&mut self, stmt: &Statement) {
@@ -157,12 +159,102 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
         }
     }
 
-    fn visit_for(&mut self, _node: &ForIterationStatement) {
-        self.enter_block();
+    fn visit_selection(&mut self, s: &SelectionStatement) {
+        let pos = SourcePosition::from_rustemo(&s.if_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
     }
 
-    fn leave_for(&mut self, _node: &ForIterationStatement) {
+    fn leave_selection(&mut self, _s: &SelectionStatement) {
         self.exit_block();
+    }
+
+    fn visit_else_if_clause(&mut self, c: &ElseIfClause) {
+        self.exit_block();
+        let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn visit_else_clause(&mut self, c: &ElseClause) {
+        self.exit_block();
+        let pos = SourcePosition::from_rustemo(&c.else_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn visit_for(&mut self, f: &ForIterationStatement) {
+        let pos = SourcePosition::from_rustemo(&f.for_t.position);
+        self.enter_block(pos.line as u32, pos.column as u32);
+
+        let index_pos = SourcePosition::from_rustemo(&f.header.idx.position);
+        self.pending_block_pos.push((index_pos.line as u32, index_pos.column as u32));
+    }
+
+    fn leave_for(&mut self, _f: &ForIterationStatement) {
+        self.exit_block(); // body block
+        self.exit_block(); // for index block
+    }
+
+    fn visit_while(&mut self, w: &WhileIterationStatement) {
+        let pos = SourcePosition::from_rustemo(&w.while_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_while(&mut self, _w: &WhileIterationStatement) {
+        self.exit_block();
+    }
+
+    fn visit_exists(&mut self, e: &ExistsStatement) {
+        let pos = SourcePosition::from_rustemo(&e.exists_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_exists(&mut self, _e: &ExistsStatement) {
+        self.exit_block();
+    }
+
+    fn visit_not_exists(&mut self, e: &NotExistsStatement) {
+        let pos = SourcePosition::from_rustemo(&e.not_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_not_exists(&mut self, _e: &NotExistsStatement) {
+        self.exit_block();
+    }
+
+    fn visit_feedthrough(&mut self, e: &FeedthroughStatement) {
+        let pos = SourcePosition::from_rustemo(&e.feedthrough_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_feedthrough(&mut self, _e: &FeedthroughStatement) {
+        self.exit_block();
+    }
+
+    fn visit_not_feedthrough(&mut self, e: &NotFeedthroughStatement) {
+        let pos = SourcePosition::from_rustemo(&e.not_t.position);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+    }
+
+    fn leave_not_feedthrough(&mut self, _e: &NotFeedthroughStatement) {
+        self.exit_block();
+    }
+
+    fn visit_macro_for(&mut self, m: &MacroFor) {
+        self.scope_stack.push(Scope::TransparentBlock);
+        let pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        self.scope_stack.push(Scope::MacroIndexBlock { line: pos.line as u32, col: pos.column as u32 });
+    }
+
+    fn leave_macro_for(&mut self, _m: &MacroFor) {
+        self.scope_stack.pop(); // pop MacroIndexBlock
+        self.scope_stack.pop(); // pop TransparentBlock
+    }
+
+    fn visit_macro_if(&mut self, _node: &MacroIf) {
+        self.scope_stack.push(Scope::TransparentBlock);
+    }
+
+    fn leave_macro_if(&mut self, _node: &MacroIf) {
+        self.scope_stack.pop();
     }
 
     fn visit_assignment(&mut self, a: &AssignmentStatement) {
@@ -180,22 +272,6 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
         if let PostfixExpression::RValue(r) = e {
             self.check_rvalue(&r._ref);
         }
-    }
-
-    fn visit_macro_for(&mut self, _node: &MacroFor) {
-        self.enter_block();
-    }
-
-    fn leave_macro_for(&mut self, _node: &MacroFor) {
-        self.exit_block();
-    }
-
-    fn visit_macro_if(&mut self, _node: &MacroIf) {
-        self.enter_block();
-    }
-
-    fn leave_macro_if(&mut self, _node: &MacroIf) {
-        self.exit_block();
     }
 }
 
