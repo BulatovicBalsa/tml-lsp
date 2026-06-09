@@ -1,7 +1,8 @@
 use tml_parser::tml_actions::*;
 use crate::position::SourcePosition;
-use crate::symbol_table::{convert_type_spec, Scope, SymbolTable, SymbolType};
-use crate::visitor::{AstVisitor, opt_iter};
+use crate::symbol_table::{convert_type_spec, SymbolTable};
+use crate::types::{Scope, SymbolType};
+use crate::visitor::{opt_iter, AstVisitor};
 
 // ───────────────────────── HoverableKind ─────────────────────────
 

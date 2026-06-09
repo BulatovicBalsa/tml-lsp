@@ -2,6 +2,7 @@ use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
 use tml_tools::symbol_table::*;
+use tml_tools::types::{Scope, SimpleTypeKind, Symbol, SymbolError, SymbolType};
 
 fn build_table(src: &str) -> (SymbolTable, Vec<SymbolError>) {
     let parser = TmlParser::new();

@@ -1,7 +1,8 @@
 use crate::checkers::function_call::{infer_builtin_return_type, lookup_builtin};
-use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
+use crate::symbol_table::SymbolTable;
 use tml_parser::tml_actions::*;
 use crate::constants::RESERVED_NAMESPACES;
+use crate::types::{Scope, SimpleTypeKind, SymbolType};
 // ───────────────────────── Type promotion ─────────────────────────
 
 /// Returns the more general of two numeric types.

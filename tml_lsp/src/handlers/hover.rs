@@ -1,7 +1,7 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tml_tools::collectors::hoverable::{HoverableCollector, HoverableKind};
-use tml_tools::symbol_table::Scope;
+use tml_tools::types::Scope;
 use crate::backend::Backend;
 
 pub async fn hover(backend: &Backend, params: HoverParams) -> Result<Option<Hover>> {

@@ -1,9 +1,10 @@
 use crate::constants::{is_predefined_literal, is_reserved_namespace};
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
-use crate::symbol_table::{dot_access_to_string, Scope, SymbolTable};
+use crate::symbol_table::{dot_access_to_string, SymbolTable};
 use crate::visitor::AstVisitor;
 use tml_parser::tml_actions::*;
+use crate::types::Scope;
 
 #[derive(Debug, Clone)]
 pub enum CheckError {

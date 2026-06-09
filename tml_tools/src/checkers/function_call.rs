@@ -2,8 +2,9 @@ use tml_parser::tml_actions::*;
 use crate::constants;
 use crate::diagnostics::{Diagnostic, DiagnosticSource};
 use crate::position::SourcePosition;
-use crate::symbol_table::{Scope, SimpleTypeKind, SymbolTable, SymbolType};
+use crate::symbol_table::SymbolTable;
 use crate::type_inference::infer_type;
+use crate::types::{Scope, SimpleTypeKind, SymbolType};
 use crate::visitor::AstVisitor;
 
 // ───────────────────────── Built-ins ─────────────────────────
