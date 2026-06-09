@@ -87,6 +87,10 @@ impl<'a> UndefinedVariableChecker<'a> {
         self.scope_stack.pop();
     }
 
+    fn is_directly_in_transparent_block(&self) -> bool {
+        matches!(self.scope_stack.last(), Some(Scope::TransparentBlock))
+    }
+
     fn check_rvalue(&mut self, dot: &DotAccessExpression) {
         let first_id = match dot.names.first() {
             Some(id) => id,
@@ -169,15 +173,23 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     }
 
     fn visit_else_if_clause(&mut self, c: &ElseIfClause) {
-        self.exit_block();
-        let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
-        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        // Only exit block if we're not inside a macro_if
+        // (macro_if branches are transparent and share the same scope)
+        if !self.is_directly_in_transparent_block() {
+            self.exit_block();
+            let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
+            self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        }
     }
 
     fn visit_else_clause(&mut self, c: &ElseClause) {
-        self.exit_block();
-        let pos = SourcePosition::from_rustemo(&c.else_t.position);
-        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        // Only exit block if we're not inside a macro_if
+        // (macro_if branches are transparent and share the same scope)
+        if !self.is_directly_in_transparent_block() {
+            self.exit_block();
+            let pos = SourcePosition::from_rustemo(&c.else_t.position);
+            self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        }
     }
 
     fn visit_for(&mut self, f: &ForIterationStatement) {

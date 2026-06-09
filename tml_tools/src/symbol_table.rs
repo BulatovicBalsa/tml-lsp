@@ -176,6 +176,10 @@ impl SymbolTableBuilder {
     fn exit_block(&mut self) {
         self.scope_stack.pop();
     }
+    
+    fn is_directly_in_transparent_block(&self) -> bool {
+        matches!(self.scope_stack.last(), Some(Scope::TransparentBlock))
+    }
 
     // ── Symbol helpers ──
 
@@ -308,16 +312,22 @@ impl AstVisitor for SymbolTableBuilder {
 
     fn visit_else_if_clause(&mut self, c: &ElseIfClause) {
         // Close previous if/elseif block, open new one for this elseif
-        self.exit_block();
-        let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
-        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        // (unless inside a macro_if, which is transparent)
+        if !self.is_directly_in_transparent_block() {
+            self.exit_block();
+            let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
+            self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        }
     }
 
     fn visit_else_clause(&mut self, c: &ElseClause) {
         // Close previous if/elseif block, open new one for else
-        self.exit_block();
-        let pos = SourcePosition::from_rustemo(&c.else_t.position);
-        self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        // (unless inside a macro_if, which is transparent)
+        if !self.is_directly_in_transparent_block() {
+            self.exit_block();
+            let pos = SourcePosition::from_rustemo(&c.else_t.position);
+            self.pending_block_pos.push((pos.line as u32, pos.column as u32));
+        }
     }
 
     fn visit_for(&mut self, f: &ForIterationStatement) {

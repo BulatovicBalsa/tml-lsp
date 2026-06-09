@@ -452,3 +452,19 @@ fn test_macro_for_variable_visible_after() {
     assert!(!has_undefined(&errors, "x"),
         "'x' defined inside macro for should be visible after, got: {:?}", errors);
 }
+
+#[test]
+fn test_macro_if_else_declaration_visible_from_outer_scope() {
+    // variable defined in macro if should be visible in outer scope
+    let errors = check("macro if true:\n    int b = 5\nelse:\n    int x = 0\nend\ny = x");
+    assert!(!has_undefined(&errors, "x"),
+        "'x' defined in macro if/else should be visible after, got: {:?}", errors);
+}
+
+#[test]
+fn test_macro_if_elseif_variable_visible_after() {
+    // variable defined in any branch should be visible after
+    let errors = check("macro if true:\n    x = 5\nelseif false:\n    y = 3\nelse:\n    z = 0\nend\nf = y");
+    assert!(!has_undefined(&errors, "y"),
+        "'y' defined in macro elseif should be visible after, got: {:?}", errors);
+}
