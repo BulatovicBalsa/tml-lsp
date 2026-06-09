@@ -114,16 +114,27 @@ impl<'a> UndefinedVariableChecker<'a> {
         }
     }
 
+    /// Check that a loop index variable is not a reserved namespace or predefined literal.
+    fn check_index_variable(&mut self, name: &str, position: SourcePosition) {
+        if is_reserved_namespace(name) || is_predefined_literal(name) {
+            self.errors.push(CheckError::RedeclaredNamespace {
+                name: name.to_string(),
+                position,
+            });
+        }
+    }
+
     fn check_namespace_redeclaration(&mut self, dot: &DotAccessExpression) {
         let first_id = match dot.names.first() {
             Some(id) => id,
             None => return,
         };
         let root = first_id.value.as_str();
-        if is_reserved_namespace(root) && dot.names.len() == 1 {
+        let pos = SourcePosition::from_rustemo(&first_id.position);
+        if (is_reserved_namespace(root) || is_predefined_literal(root)) && dot.names.len() == 1 {
             self.errors.push(CheckError::RedeclaredNamespace {
                 name: dot_access_to_string(dot),
-                position: SourcePosition::from_rustemo(&first_id.position),
+                position: pos,
             });
         }
     }
@@ -133,7 +144,6 @@ impl<'a> UndefinedVariableChecker<'a> {
 
 impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
-        // Check for namespace re-declarations at the top level
         if let ExternalDeclaration::DeclarationStatement(d) = decl {
             self.check_namespace_redeclaration(&d.id);
         }
@@ -173,8 +183,7 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     }
 
     fn visit_else_if_clause(&mut self, c: &ElseIfClause) {
-        // Only exit block if we're not inside a macro_if
-        // (macro_if branches are transparent and share the same scope)
+        // Only exit/open block if we're not inside a macro_if body (transparent scope)
         if !self.is_directly_in_transparent_block() {
             self.exit_block();
             let pos = SourcePosition::from_rustemo(&c.else_if_t.position);
@@ -183,8 +192,7 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     }
 
     fn visit_else_clause(&mut self, c: &ElseClause) {
-        // Only exit block if we're not inside a macro_if
-        // (macro_if branches are transparent and share the same scope)
+        // Only exit/open block if we're not inside a macro_if body (transparent scope)
         if !self.is_directly_in_transparent_block() {
             self.exit_block();
             let pos = SourcePosition::from_rustemo(&c.else_t.position);
@@ -195,9 +203,10 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     fn visit_for(&mut self, f: &ForIterationStatement) {
         let pos = SourcePosition::from_rustemo(&f.for_t.position);
         self.enter_block(pos.line as u32, pos.column as u32);
-
-        let index_pos = SourcePosition::from_rustemo(&f.header.idx.position);
-        self.pending_block_pos.push((index_pos.line as u32, index_pos.column as u32));
+        // Check index variable
+        let idx_pos = SourcePosition::from_rustemo(&f.header.idx.position);
+        self.check_index_variable(&f.header.idx.value, idx_pos);
+        self.pending_block_pos.push((pos.line as u32, pos.column as u32 + 1));
     }
 
     fn leave_for(&mut self, _f: &ForIterationStatement) {
@@ -253,6 +262,9 @@ impl<'a> AstVisitor for UndefinedVariableChecker<'a> {
     fn visit_macro_for(&mut self, m: &MacroFor) {
         self.scope_stack.push(Scope::TransparentBlock);
         let pos = SourcePosition::from_rustemo(&m.macro_t.position);
+        // Check index variable
+        let idx_pos = SourcePosition::from_rustemo(&m.body.header.idx.position);
+        self.check_index_variable(&m.body.header.idx.value, idx_pos);
         self.scope_stack.push(Scope::MacroIndexBlock { line: pos.line as u32, col: pos.column as u32 });
     }
 

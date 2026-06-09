@@ -420,6 +420,26 @@ fn test_predefined_variable_in_expression() {
     assert!(errors.is_empty(), "Predefined literal 'M_PI' should not be undefined, got: {:?}", errors);
 }
 
+#[test]
+fn test_predefined_variable_declaration() {
+    let errors = check("M_PI = 3.14");
+    assert!(has_redeclaration(&errors, "M_PI"),
+        "Expected redeclaration error for 'M_PI', got: {:?}", errors);
+}
+
+#[test]
+fn test_predefined_variable_used_in_function() {
+    let errors = check("fn test():\n    result = M_E * 2\nend");
+    assert!(errors.is_empty(), "Predefined literal 'M_E' should be valid inside function, got: {:?}", errors);
+}
+
+#[test]
+fn test_predefined_variable_declaration_with_type() {
+    let errors = check("int M_E = 3");
+    assert!(has_redeclaration(&errors, "M_E"),
+        "Expected redeclaration error for 'M_E', got: {:?}", errors);
+}
+
 // ───────────────────────── Macro if scope ─────────────────────────
 
 #[test]

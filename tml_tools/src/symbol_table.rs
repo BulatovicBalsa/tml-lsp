@@ -204,57 +204,41 @@ impl SymbolTableBuilder {
 
     fn add_symbol_in_scope(&mut self, name: &str, ty: SymbolType, position: Option<SourcePosition>, scope: Scope) {
         let is_duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
-        let is_namespace = is_reserved_namespace(name);
-        let is_predefined_literal = is_predefined_literal(name);
 
         if is_duplicate {
-            self.errors.insert(SymbolError::new(name, &format!("'{}' is already defined in this scope", name), position.clone()));
+            self.errors.insert(SymbolError::new(name, &format!("'{}' is already defined in this scope", name), position));
+            return;
         }
-        if is_namespace {
-            self.errors.insert(SymbolError::new(name, &format!("'{}' is a reserved namespace and cannot be redefined", name), position.clone()));
+
+        // Don't add reserved namespaces or predefined literals —
+        // UndefinedVariableChecker reports these as semantic errors.
+        if is_reserved_namespace(name) || is_predefined_literal(name) {
+            return;
         }
-        if is_predefined_literal {
-            self.errors.insert(SymbolError::new(name, &format!("'{}' is a predefined literal and cannot be redefined", name), position.clone()));
-        }
-        if !is_duplicate && !is_namespace && !is_predefined_literal {
-            self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
-        }
+
+        self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
     }
 
     fn add_symbol(&mut self, name: &str, ty: SymbolType, position: Option<SourcePosition>) {
         let scope = self.current_scope();
         let is_duplicate = self.table.symbols.iter().any(|s| s.name == name && s.scope == scope);
-        let is_namespace = is_reserved_namespace(name);
-        let is_predefined_literal = is_predefined_literal(name);
 
         if is_duplicate {
             self.errors.insert(SymbolError::new(
                 name,
                 &format!("'{}' is already defined in this scope", name),
-                position.clone()
+                position,
             ));
+            return;
         }
-        if is_namespace {
-            self.errors.insert(SymbolError::new(
-                name,
-                &format!("'{}' is a reserved namespace and cannot be redefined", name),
-                position.clone()
-            ));
+
+        // Don't add reserved namespaces or predefined literals to the symbol table —
+        // UndefinedVariableChecker reports these as semantic errors.
+        if is_reserved_namespace(name) || is_predefined_literal(name) {
+            return;
         }
-        if is_predefined_literal {
-            self.errors.insert(SymbolError::new(
-                name,
-                &format!("'{}' is a predefined literal and cannot be redefined", name),
-                position.clone()
-            ));
-        }
-        if !is_duplicate && !is_namespace && !is_predefined_literal {
-            self.table.symbols.push(Symbol {
-                name: name.to_string(),
-                ty,
-                scope,
-            });
-        }
+
+        self.table.symbols.push(Symbol { name: name.to_string(), ty, scope });
     }
 
 }
