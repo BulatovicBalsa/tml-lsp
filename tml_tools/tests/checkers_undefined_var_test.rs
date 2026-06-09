@@ -488,3 +488,15 @@ fn test_macro_if_elseif_variable_visible_after() {
     assert!(!has_undefined(&errors, "y"),
         "'y' defined in macro elseif should be visible after, got: {:?}", errors);
 }
+
+#[test]
+fn test_predefined_literal_used_in_expression() {
+    let errors = check("conversion_constant = M_PI / 3\nphase_state = conversion_constant");
+    assert!(errors.is_empty(), "Predefined literal 'M_PI' should be valid, got: {:?}", errors);
+}
+
+#[test]
+fn test_predefined_literal_used_in_expression_with_declared_var() {
+    let errors = check("real conversion_constant = M_PI / 3\nphase_state = conversion_constant");
+    assert!(errors.is_empty(), "Predefined literal 'M_PI' should be valid in expression with declared var, got: {:?}", errors);
+}

@@ -1,6 +1,7 @@
 use rstest::rstest;
 use rustemo::Parser;
 use tml_parser::tml::TmlParser;
+use tml_tools::constants::{PREDEFINED_LITERALS, PREDEFINED_LITERAL_TYPES};
 use tml_tools::symbol_table::*;
 use tml_tools::types::{Scope, SimpleTypeKind, Symbol, SymbolError, SymbolType};
 
@@ -543,7 +544,52 @@ fn test_namespace_bare_root_not_inferred() {
         "bare 'p' should not be inferred as Derived");
 }
 
-// ───────────────────────── Duplicate function detection ─────────────────────────
+// ───────────────────────── Predefined literal type inference ─────────────────────────
+#[test]
+fn test_all_predefined_literals_have_type_mapping() {
+    for name in PREDEFINED_LITERALS {
+        let has_mapping = PREDEFINED_LITERAL_TYPES.iter().any(|(lit, _)| lit == name);
+        assert!(has_mapping,
+            "Predefined literal '{}' has no type mapping in PREDEFINED_LITERAL_TYPES", name);
+    }
+}
+
+#[rstest]
+#[case("M_PI", SymbolType::Simple(SimpleTypeKind::Real))]
+#[case("M_E",  SymbolType::Simple(SimpleTypeKind::Real))]
+#[case("inf",  SymbolType::Simple(SimpleTypeKind::Real))]
+fn test_infer_type_from_predefined_literal(
+    #[case] literal: &str,
+    #[case] expected: SymbolType,
+) {
+    let (table, errors) = build_table(&format!("a = {}", literal));
+    assert!(errors.is_empty(),
+        "Unexpected errors for literal '{}': {:?}", literal, errors);
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, expected,
+        "Expected {:?} inferred from '{}', got: {:?}", expected, literal, sym.ty);
+}
+
+#[test]
+fn test_predefined_literal_in_expression_promotes_to_real() {
+    // int + M_PI -> real (real wins in promotion)
+    let (table, errors) = build_table("int x = 5\na = x + M_PI");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = get_symbol(&table, "a", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real),
+        "Expected Real when mixing int with M_PI, got: {:?}", sym.ty);
+}
+
+#[test]
+fn test_predefined_literal_in_function_body() {
+    let (table, errors) = build_table("fn test():\n    a = M_PI * 2\nend");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Real),
+        "Expected Real from M_PI * 2, got: {:?}", sym.ty);
+}
 
 #[test]
 fn test_duplicate_function_definition() {

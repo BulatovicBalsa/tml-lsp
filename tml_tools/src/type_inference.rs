@@ -1,8 +1,8 @@
 use crate::checkers::function_call::{infer_builtin_return_type, lookup_builtin};
+use crate::constants::{get_predefined_literal_type, is_predefined_literal, is_reserved_namespace};
 use crate::symbol_table::SymbolTable;
-use tml_parser::tml_actions::*;
-use crate::constants::RESERVED_NAMESPACES;
 use crate::types::{Scope, SimpleTypeKind, SymbolType};
+use tml_parser::tml_actions::*;
 // ───────────────────────── Type promotion ─────────────────────────
 
 /// Returns the more general of two numeric types.
@@ -93,9 +93,13 @@ fn infer_rvalue(r: &RValue, table: &SymbolTable, stack: &[Scope]) -> Option<Symb
     let dot = &r._ref;
     let root = dot.names.first()?.value.as_str();
 
-    if RESERVED_NAMESPACES.contains(&root) && dot.names.len() > 1 {
+    if is_reserved_namespace(&root) && dot.names.len() > 1 {
         let full = crate::symbol_table::dot_access_to_string(dot);
         return Some(SymbolType::Derived(full));
+    }
+    
+    if is_predefined_literal(root) {
+        return get_predefined_literal_type(root);
     }
 
     let symbol = table.lookup_in_stack(root, stack)?;
