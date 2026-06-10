@@ -591,6 +591,46 @@ fn test_predefined_literal_in_function_body() {
         "Expected Real from M_PI * 2, got: {:?}", sym.ty);
 }
 
+// ───────────────────────── IO read type inference ─────────────────────────
+
+#[test]
+fn test_io_read_infers_type_from_declaration() {
+    // link_up declared as uint, reading it via <- should infer uint
+    let src = "in<uint, 0x0> link_up\nlink_up_val = <-link_up";
+    let (table, errors) = build_table(src);
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = get_symbol(&table, "link_up_val", &Scope::Global);
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Uint),
+        "Expected Uint inferred from IO read of 'link_up', got: {:?}", sym.ty);
+}
+
+#[test]
+fn test_io_read_result_usable_in_next_assignment() {
+    // link_up_val should be visible after IO read assignment
+    let src = "in<uint, 0x0> link_up\nlink_up_val = <-link_up\nx = link_up_val";
+    let (table, errors) = build_table(src);
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    assert!(table.lookup("x", &Scope::Global).is_some(),
+        "Expected 'x' in table after using IO read result");
+}
+
+#[test]
+fn test_io_read_in_function_infers_type() {
+    let src = concat!(
+        "in<int, 0x0> sensor\n",
+        "fn test():\n",
+        "    val = <-sensor\n",
+        "end"
+    );
+    let (table, errors) = build_table(src);
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "val" && in_local_scope(&s.scope))
+        .expect("Expected 'val' in local scope");
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int),
+        "Expected Int inferred from IO read of 'sensor', got: {:?}", sym.ty);
+}
+
 #[test]
 fn test_duplicate_function_definition() {
     let (_, errors) = build_table("fn foo():\n    pass\nend\nfn foo():\n    pass\nend");

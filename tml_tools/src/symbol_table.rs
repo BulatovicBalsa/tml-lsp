@@ -97,6 +97,13 @@ impl SymbolTableBuilder {
 
     // ── Symbol helpers ──
 
+    fn handle_io_declaration(&mut self, d: &IoDeclarationStatement) {
+        let name = dot_access_to_string(&d.id);
+        let position = dot_access_position(&d.id);
+        let ty = convert_type_spec(&d.io_type._type);
+        self.add_symbol(&name, ty, Some(position));
+    }
+
     fn handle_declaration(&mut self, d: &DeclarationStatement) {
         let name = dot_access_to_string(&d.id);
         let position = dot_access_position(&d.id);
@@ -160,8 +167,9 @@ impl SymbolTableBuilder {
 impl AstVisitor for SymbolTableBuilder {
     fn visit_external_declaration(&mut self, decl: &ExternalDeclaration) {
         match decl {
-            ExternalDeclaration::DeclarationStatement(d) => self.handle_declaration(d),
-            ExternalDeclaration::AssignmentStatement(a)  => self.handle_assignment(a),
+            ExternalDeclaration::DeclarationStatement(d)   => self.handle_declaration(d),
+            ExternalDeclaration::AssignmentStatement(a)    => self.handle_assignment(a),
+            ExternalDeclaration::IoDeclarationStatement(d) => self.handle_io_declaration(d),
             _ => {}
         }
     }
@@ -191,8 +199,9 @@ impl AstVisitor for SymbolTableBuilder {
 
     fn visit_statement(&mut self, stmt: &Statement) {
         match stmt {
-            Statement::DeclarationStatement(d) => self.handle_declaration(d),
-            Statement::AssignmentStatement(a)  => self.handle_assignment(a),
+            Statement::DeclarationStatement(d)   => self.handle_declaration(d),
+            Statement::AssignmentStatement(a)    => self.handle_assignment(a),
+            Statement::IoDeclarationStatement(d) => self.handle_io_declaration(d),
             _ => {}
         }
     }

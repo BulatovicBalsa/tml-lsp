@@ -500,3 +500,13 @@ fn test_predefined_literal_used_in_expression_with_declared_var() {
     let errors = check("real conversion_constant = M_PI / 3\nphase_state = conversion_constant");
     assert!(errors.is_empty(), "Predefined literal 'M_PI' should be valid in expression with declared var, got: {:?}", errors);
 }
+
+#[test]
+fn test_io_write_statement() {
+    // in<uint, n.link_up_addr> link_up
+    // link_up_val = <-link_up
+    //
+    // x = link_up_val // should not cause undefined error for link_up_val
+    let errors = check("in<uint, n.link_up_addr> link_up\nlink_up_val = <-link_up\nx = link_up_val");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}

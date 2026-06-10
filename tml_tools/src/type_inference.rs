@@ -34,12 +34,23 @@ pub fn promote(a: &SymbolType, b: &SymbolType) -> SymbolType {
 
 pub fn infer_type(expr: &Expression, table: &SymbolTable, stack: &[Scope]) -> Option<SymbolType> {
     match expr {
-        Expression::MathExpression(e)     => infer_math(e, table, stack),
-        Expression::LogicalExpression(_)  => Some(SymbolType::Simple(SimpleTypeKind::Bool)),
-        Expression::BitwiseExpression(e)  => infer_bitwise(e, table, stack),
+        Expression::MathExpression(e) => infer_math(e, table, stack),
+        Expression::LogicalExpression(_) => Some(SymbolType::Simple(SimpleTypeKind::Bool)),
+        Expression::BitwiseExpression(e) => infer_bitwise(e, table, stack),
         Expression::TypeCastExpression(e) => Some(crate::symbol_table::convert_type_spec(&e._type)),
-        Expression::NarrowExpression(e)   => infer_type(&e.expr, table, stack),
-        Expression::IoReadExpression(_)   => None,
+        Expression::NarrowExpression(e) => infer_type(&e.expr, table, stack),
+        Expression::IoReadExpression(io) => {
+            // Infer type from the declared IO variable's type in the symbol table
+            let root = match io {
+                IoReadExpression::VarIoReadExpression(v) => {
+                    v.io_var.names.first()?.value.as_str().to_string()
+                }
+                IoReadExpression::TensorIoReadExpression(t) => {
+                    t.io_tensor.expr.names.first()?.value.as_str().to_string()
+                }
+            };
+            table.lookup_in_stack(&root, stack).map(|s| s.ty.clone())
+        }
     }
 }
 
