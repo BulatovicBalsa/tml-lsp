@@ -12,13 +12,9 @@ use tml_tools::symbol_table::SymbolTableBuilder;
 use tower_lsp::lsp_types::*;
 
 pub async fn update_document(backend: &Backend, uri: Url, text: String) {
-    backend.client.log_message(MessageType::INFO, "Updating document...").await;
-
     let key = uri.to_string();
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     backend.documents.write().await.insert(key.clone(), normalized.clone());
-
-    backend.client.log_message(MessageType::INFO, "Document updated, starting parse...").await;
 
     let parse_result = tokio::task::spawn_blocking(move || {
         TmlParser::new().parse(&normalized).map(|ast| {
@@ -43,7 +39,7 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
             backend.client.log_message(
                 MessageType::INFO,
                 format!(
-                    "Parsed OK — {} symbol(s), {} hoverable node(s), {} fold(s), {} error(s), {} block span(s)",
+                    "Parsed OK - {} symbol(s), {} hoverable node(s), {} fold(s), {} error(s), {} block span(s)",
                     table.symbols.len(), nodes.len(), folds.len(), sym_errors.len(), block_spans.len(),
                 ),
             ).await;
@@ -96,6 +92,10 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
                 }
             }
 
+            backend.client.log_message(
+                MessageType::INFO,
+                format!("Publishing diagnostics for {}", uri)
+             ).await;
             backend.client.publish_diagnostics(uri, lsp_diagnostics, None).await;
         }
         Ok(Err(e)) => {

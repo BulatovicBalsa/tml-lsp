@@ -84,16 +84,28 @@ impl LanguageServer for Backend {
     // ── Document sync ──
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        self.client.log_message(
+            MessageType::INFO,
+            format!("Document opened: {}", params.text_document.uri),
+        ).await;
         document::update_document(self, params.text_document.uri, params.text_document.text).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        self.client.log_message(
+            MessageType::INFO,
+            format!("Document changed: {}", params.text_document.uri),
+        ).await;
         if let Some(change) = params.content_changes.into_iter().last() {
             document::update_document(self, params.text_document.uri, change.text).await;
         }
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
+        self.client.log_message(
+            MessageType::INFO,
+            format!("Document saved: {}", params.text_document.uri),
+        ).await;
         let text = self.documents.read().await
             .get(&params.text_document.uri.to_string())
             .cloned();
@@ -103,6 +115,10 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        self.client.log_message(
+            MessageType::INFO,
+            format!("Document closed: {}", params.text_document.uri),
+        ).await;        
         let key = params.text_document.uri.to_string();
         self.documents.write().await.remove(&key);
         self.hoverable.write().await.remove(&key);
