@@ -581,6 +581,44 @@ fn test_predefined_literal_in_expression_promotes_to_real() {
 }
 
 #[test]
+fn test_sign_scalar_returns_int() {
+    let (table, errors) = build_table("fn test():\n    a = sign(-5.0)\nend");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int),
+        "sign() on scalar should return Int, got: {:?}", sym.ty);
+}
+
+#[test]
+fn test_sign_int_returns_int() {
+    let (table, errors) = build_table("fn test():\n    int x = 5\n    a = sign(x)\nend");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
+    assert_eq!(sym.ty, SymbolType::Simple(SimpleTypeKind::Int),
+        "sign() on int should return Int, got: {:?}", sym.ty);
+}
+
+#[test]
+fn test_sign_tensor_returns_tensor_of_int() {
+    let (table, errors) = build_table(
+        "tensor<real, 3> buf = [1.0, -2.0, 0.0]\nfn test():\n    a = sign(buf)\nend"
+    );
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    let sym = table.symbols.iter()
+        .find(|s| s.name == "a" && in_local_scope(&s.scope))
+        .expect("Expected 'a' in local scope");
+    assert_eq!(
+        sym.ty,
+        SymbolType::Tensor(Box::new(SymbolType::Simple(SimpleTypeKind::Int)), vec!["3".to_string()]),
+        "sign() on tensor<real, 3> should return tensor<int, 3>, got: {:?}", sym.ty
+    );
+}
+
+#[test]
 fn test_predefined_literal_in_function_body() {
     let (table, errors) = build_table("fn test():\n    a = M_PI * 2\nend");
     assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);

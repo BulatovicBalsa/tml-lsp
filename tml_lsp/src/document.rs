@@ -95,7 +95,7 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
             backend.client.log_message(
                 MessageType::INFO,
                 format!("Publishing diagnostics for {}", uri)
-             ).await;
+            ).await;
             backend.client.publish_diagnostics(uri, lsp_diagnostics, None).await;
         }
         Ok(Err(e)) => {

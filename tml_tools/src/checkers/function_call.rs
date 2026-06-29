@@ -14,7 +14,7 @@ pub struct BuiltinSignature {
     arg_count: usize,
 }
 
-const BUILTINS: &[BuiltinSignature] = &[
+pub const BUILTINS: &[BuiltinSignature] = &[
     BuiltinSignature { name: "min",    arg_count: 1 },
     BuiltinSignature { name: "min!",   arg_count: 1 },
     BuiltinSignature { name: "max",    arg_count: 1 },
@@ -38,6 +38,7 @@ const BUILTINS: &[BuiltinSignature] = &[
     BuiltinSignature { name: "log",    arg_count: 1 },
     BuiltinSignature { name: "log10",  arg_count: 1 },
     BuiltinSignature { name: "sqrt",   arg_count: 1 },
+    BuiltinSignature { name: "sign",   arg_count: 1 },
     BuiltinSignature { name: "atan2",  arg_count: 2 },
     BuiltinSignature { name: "getbit", arg_count: 2 },
     BuiltinSignature { name: "setbit", arg_count: 3 },
@@ -63,6 +64,19 @@ pub fn infer_builtin_return_type(
                 Argument::C2(a) => &a.value,
             };
             infer_type(arg_expr, table, stack)
+        }
+        "sign" => {
+            let arg_expr = match args.first()? {
+                Argument::C1(a) => &a.value,
+                Argument::C2(a) => &a.value,
+            };
+            match infer_type(arg_expr, table, stack)? {
+                SymbolType::Tensor(_, dims) => Some(SymbolType::Tensor(
+                    Box::new(SymbolType::Simple(SimpleTypeKind::Int)),
+                    dims,
+                )),
+                _ => Some(SymbolType::Simple(SimpleTypeKind::Int)),
+            }
         }
         "atan2" => {
             if args.len() < 2 { return None; }
