@@ -2,7 +2,7 @@ pub mod formatter;
 pub mod symbol_table;
 pub mod type_inference;
 mod visitor;
-mod position;
+pub mod position;
 pub mod diagnostics;
 pub mod checkers;
 pub mod collectors;

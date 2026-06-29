@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use tower_lsp::Client;
+use tower_lsp::lsp_types::Diagnostic;
 use tml_tools::collectors::block_span::BlockSpan;
 use tml_tools::collectors::folding::TmlFoldingRange;
 use tml_tools::collectors::hoverable::HoverableNode;
+use tml_tools::collectors::semantic_tokens::RawToken;
 use tml_tools::symbol_table::SymbolTable;
 
 // ───────────────────────── Quick fix types ─────────────────────────
@@ -18,6 +20,19 @@ pub struct EmptyBodyQuickFix {
     pub indent: String,
 }
 
+// ───────────────────────── Cached document state ─────────────────────────
+
+#[derive(Clone)]
+pub struct CachedDocumentState {
+    pub table: SymbolTable,
+    pub nodes: Vec<HoverableNode>,
+    pub folds: Vec<TmlFoldingRange>,
+    pub spans: Vec<BlockSpan>,
+    pub quick_fixes: Vec<EmptyBodyQuickFix>,
+    pub diagnostics: Vec<Diagnostic>,
+    pub semantic_tokens: Vec<RawToken>,
+}
+
 // ───────────────────────── Backend ─────────────────────────
 
 pub struct Backend {
@@ -28,6 +43,7 @@ pub struct Backend {
     pub folding_ranges: RwLock<HashMap<String, Vec<TmlFoldingRange>>>,
     pub quick_fixes: RwLock<HashMap<String, Vec<EmptyBodyQuickFix>>>,
     pub block_spans: RwLock<HashMap<String, Vec<BlockSpan>>>,
+    pub last_valid: RwLock<HashMap<String, CachedDocumentState>>,
 }
 
 impl Backend {
@@ -40,6 +56,7 @@ impl Backend {
             folding_ranges: RwLock::new(HashMap::new()),
             quick_fixes: RwLock::new(HashMap::new()),
             block_spans: RwLock::new(HashMap::new()),
+            last_valid: RwLock::new(HashMap::new()),
         }
     }
 }

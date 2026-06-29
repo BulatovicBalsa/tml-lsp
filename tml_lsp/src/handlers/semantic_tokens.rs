@@ -1,7 +1,5 @@
 use crate::backend::Backend;
-use rustemo::Parser;
-use tml_parser::tml::TmlParser;
-use tml_tools::collectors::semantic_tokens::{RawToken, SemanticTokenCollector};
+use tml_tools::collectors::semantic_tokens::RawToken;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{SemanticToken, SemanticTokens, SemanticTokensParams, SemanticTokensResult};
 
@@ -11,23 +9,14 @@ pub async fn semantic_tokens_full(
 ) -> Result<Option<SemanticTokensResult>> {
     let uri = params.text_document.uri.to_string();
 
-    let text = match backend.documents.read().await.get(&uri).cloned() {
-        Some(t) => t,
+    let tokens = match backend.last_valid.read().await.get(&uri).cloned() {
+        Some(cached) => encode_tokens(cached.semantic_tokens),
         None => return Ok(None),
-    };
-
-    let data = match tokio::task::spawn_blocking(move || {
-        let ast = TmlParser::new().parse(&text).ok()?;
-        let tokens = SemanticTokenCollector::new().collect(&ast);
-        Some(encode_tokens(tokens))
-    }).await {
-        Ok(Some(d)) => d,
-        _ => return Ok(None),
     };
 
     Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
         result_id: None,
-        data,
+        data: tokens,
     })))
 }
 

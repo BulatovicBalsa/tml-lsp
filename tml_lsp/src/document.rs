@@ -1,5 +1,5 @@
-use crate::backend::{Backend, EmptyBodyQuickFix};
-use rustemo::Parser;
+use crate::backend::{Backend, CachedDocumentState, EmptyBodyQuickFix};
+use rustemo::{Error, Parser};
 use tml_parser::tml::TmlParser;
 use tml_tools::checkers::empty_body::{EmptyBodyChecker, EmptyBodyDiagnosticSource};
 use tml_tools::checkers::function_call::FunctionCallDiagnosticSource;
@@ -10,6 +10,7 @@ use tml_tools::collectors::hoverable::HoverableCollector;
 use tml_tools::diagnostics::{DiagnosticSeverity as ParserDiagnosticSeverity, DiagnosticsRunner};
 use tml_tools::symbol_table::SymbolTableBuilder;
 use tower_lsp::lsp_types::*;
+use tml_tools::collectors::semantic_tokens::SemanticTokenCollector;
 
 pub async fn update_document(backend: &Backend, uri: Url, text: String) {
     let key = uri.to_string();
@@ -22,6 +23,7 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
             let nodes = HoverableCollector::new().collect(&ast);
             let folds = FoldingCollector::new(&normalized).collect(&ast);
             let spans = BlockSpanCollector::new().collect(&ast);
+            let semantic_tokens = SemanticTokenCollector::new().collect(&ast);
 
             let diagnostics = DiagnosticsRunner::new()
                 .add_source(UndefinedVariableDiagnosticSource)
@@ -30,12 +32,12 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
                 .run(&ast, &table);
 
             let empty_body_fixes = EmptyBodyChecker::new().check(&ast);
-            (table, sym_errors, nodes, folds, diagnostics, empty_body_fixes, spans)
+            (table, sym_errors, nodes, folds, diagnostics, empty_body_fixes, spans, semantic_tokens)
         })
     }).await;
 
     match parse_result {
-        Ok(Ok((table, sym_errors, nodes, folds, diagnostics, empty_body_fixes, block_spans))) => {
+        Ok(Ok((table, sym_errors, nodes, folds, diagnostics, empty_body_fixes, block_spans, semantic_tokens))) => {
             backend.client.log_message(
                 MessageType::INFO,
                 format!(
@@ -92,6 +94,16 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
                 }
             }
 
+            backend.last_valid.write().await.insert(key.clone(), CachedDocumentState {
+                table: backend.symbol_tables.read().await.get(&key).unwrap().clone(),
+                nodes: backend.hoverable.read().await.get(&key).unwrap().clone(),
+                folds: backend.folding_ranges.read().await.get(&key).unwrap().clone(),
+                spans: backend.block_spans.read().await.get(&key).unwrap().clone(),
+                quick_fixes: backend.quick_fixes.read().await.get(&key).unwrap().clone(),
+                diagnostics: lsp_diagnostics.clone(),
+                semantic_tokens
+            });
+
             backend.client.log_message(
                 MessageType::INFO,
                 format!("Publishing diagnostics for {}", uri)
@@ -99,13 +111,48 @@ pub async fn update_document(backend: &Backend, uri: Url, text: String) {
             backend.client.publish_diagnostics(uri, lsp_diagnostics, None).await;
         }
         Ok(Err(e)) => {
-            backend.client.log_message(MessageType::ERROR, format!("Parse error: {:?}", e)).await;
-            backend.client.publish_diagnostics(uri, vec![], None).await;
-            backend.hoverable.write().await.remove(&key);
-            backend.folding_ranges.write().await.remove(&key);
+            let (line, col) = extract_parse_error_position(&e);
+
+            let parse_diag = Diagnostic {
+                range: Range {
+                    start: Position { line, character: col },
+                    end:   Position { line, character: col + 1 },
+                },
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: "Syntax error".to_string(),
+                ..Default::default()
+            };
+
+            if let Some(cached) = backend.last_valid.read().await.get(&key).cloned() {
+                // Restore all cached state
+                backend.hoverable.write().await.insert(key.clone(), cached.nodes);
+                backend.folding_ranges.write().await.insert(key.clone(), cached.folds);
+                backend.block_spans.write().await.insert(key.clone(), cached.spans);
+                backend.quick_fixes.write().await.insert(key.clone(), cached.quick_fixes);
+                backend.symbol_tables.write().await.insert(key.clone(), cached.table);
+
+                let mut diagnostics = cached.diagnostics.clone();
+                diagnostics.push(parse_diag);
+                backend.client.publish_diagnostics(uri, diagnostics, None).await;
+            } else {
+                // No cache — just show parse error
+                backend.client.publish_diagnostics(uri, vec![parse_diag], None).await;
+            }
         }
         Err(e) => {
             backend.client.log_message(MessageType::ERROR, format!("Internal error: {:?}", e)).await;
+        }
+    }
+}
+
+fn extract_parse_error_position(error: &Error) -> (u32, u32) {
+    match error {
+        Error::ParseError(parse_error) => {
+            let position = tml_tools::position::SourcePosition::from_rustemo(&parse_error.span.unwrap().start);
+            (position.line as u32, position.column as u32)
+        }
+        Error::IOError(_) => {
+            (0, 0) // Default position for IO errors
         }
     }
 }
