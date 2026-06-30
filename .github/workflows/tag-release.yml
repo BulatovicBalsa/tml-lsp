@@ -1,0 +1,46 @@
+name: Tag Release
+
+# Watches main for changes to tml_lsp/Cargo.toml's version field.
+# When the version there differs from the latest existing git tag,
+# automatically creates and pushes a new `vX.Y.Z` tag, which in turn
+# triggers release.yml (since it listens for pushes matching 'v*').
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'tml_lsp/Cargo.toml'
+
+jobs:
+  tag:
+    name: Create tag from Cargo.toml version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' tml_lsp/Cargo.toml | sed -E 's/version *= *"(.*)"/\1/')
+          echo "version=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push tag
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
