@@ -799,7 +799,7 @@ dependencies = [
 
 [[package]]
 name = "tml_lsp"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "rustemo",
  "tml_parser",
