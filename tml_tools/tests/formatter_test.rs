@@ -760,7 +760,7 @@ fn test_array_of_arrays_with_tensor_type() {
 }
 
 #[test]
-fn test_reset_state() {
+fn test_single_quote() {
     // Reset state between tests
     assert_formats_to(
         r#"a = x == 'string which should be valid'"#,
