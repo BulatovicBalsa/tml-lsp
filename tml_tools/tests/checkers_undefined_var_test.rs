@@ -510,3 +510,15 @@ fn test_io_write_statement() {
     let errors = check("in<uint, n.link_up_addr> link_up\nlink_up_val = <-link_up\nx = link_up_val");
     assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
 }
+
+#[test]
+fn test_optional_dot_access() {
+    // t.reset?.type reset_state? = 0u
+    // fn x():
+    //     if reset_state >= 0:
+    //         pass
+    //     end
+    // end
+    let errors = check("t.reset?.type reset_state? = 0u\nfn x():\n    if reset_state >= 0:\n        pass\n    end\nend");
+    assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+}

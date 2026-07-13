@@ -355,9 +355,7 @@ fn derived_type_to_string(d: &DerivedType) -> String {
 }
 
 pub fn dot_access_to_string(d: &DotAccessExpression) -> String {
-    let base = d.names.iter().map(|id| id.value.clone()).collect::<Vec<_>>().join(".");
-    let optional = if d.optional.is_some() { "?" } else { "" };
-    format!("{}{}", base, optional)
+    d.names.iter().map(|id| id.value.clone()).collect::<Vec<_>>().join(".")
 }
 
 pub fn dot_access_position(d: &DotAccessExpression) -> SourcePosition {
