@@ -5,12 +5,13 @@ use tml_tools::formatter::Format;
 fn parse_and_format(src: &str) -> String {
     let parser = TmlParser::new();
     let ast = parser.parse(src).expect("Parse failed");
+    println!("AST: {:#?}", ast);
     ast.format(0)
 }
 
 // ───────────────────────── Helper ─────────────────────────
 
-/// Normalize string by trimming lines and removing empty lines, 
+/// Normalize string by trimming lines and removing empty lines,
 /// to make it easier to compare formatted output
 fn normalize(s: &str) -> String {
     s.lines()
@@ -755,5 +756,14 @@ fn test_array_of_arrays_with_tensor_type() {
     assert_formats_to(
         "tensor<tensor<int, 2>, 2> a = [[1, 2], [3, 4]]",
         "tensor<tensor<int, 2>, 2> a = [[1, 2], [3, 4]]",
+    );
+}
+
+#[test]
+fn test_reset_state() {
+    // Reset state between tests
+    assert_formats_to(
+        r#"a = x == 'string which should be valid'"#,
+        "t.reset?.type reset_state? = 0u"
     );
 }
